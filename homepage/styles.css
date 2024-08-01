@@ -1,0 +1,457 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #333;
+    color: #fff;
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* 禁止 body 滚动 */
+    background-size: cover;
+    background-position: center;
+    transition: background-image 1s ease-in-out;
+}
+/* 隐藏滚动条 */
+.hidden-scrollbar {
+    overflow: hidden; /* 禁止滚动条 */
+}
+
+.hidden-scrollbar::-webkit-scrollbar {
+    display: none; /* 隐藏滚动条 - Webkit 浏览器 */
+}
+.background-slideshow {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    z-index: 0;
+}
+.clickable {
+    cursor: pointer; /* 鼠标悬停时显示为手形指针，表示可点击 */
+    transition: transform 0.3s; /* 添加过渡效果 */
+}
+a {
+    text-decoration: none;
+}
+
+.background-slideshow img {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* 保持背景图片比例裁切 */
+/*  filter: blur(50px);*/
+    opacity: 0; /* 初始状态下图片是透明的 */
+    transition: opacity 2s ease-in-out; /* 平滑过渡效果 */
+}
+
+.background-slideshow img.active {
+    opacity: 1; /* 将当前显示的图片的透明度设置为1，使其可见 */
+}
+.toggle-sidebar {
+    display: none;
+    position: fixed;
+    font-size: 24px;
+    top: 85px;
+    left: 20px;
+    background-color: rgba(128, 128, 128, 0.3);
+    border-radius: 10px;
+    -webkit-backdrop-filter: blur(10px); /* 高斯模糊效果 */
+    border: none;
+    color: #fff;
+    padding: 7px;
+    border-radius: 5px;
+    cursor: pointer;
+    z-index: 1500;
+    
+}
+.toggle-sidebar:hover {
+    background-color: rgba(255, 255, 255, 0.8);
+    color: #000;
+    transition: background-color 0.3s ease;
+}
+
+nav.sidebar {
+    width: 120px;
+    background-color: rgba(128, 128, 128, 0.5);
+    border-bottom: 2px solid rgba(64, 64, 64, 0.3);
+    border-right: 2px solid rgba(64, 64, 64, 0.3);
+    position: fixed; /* 固定 sidebar */
+    top: 150px;
+    bottom: 100px;
+    left: 10px;
+    padding: 20px;
+    z-index: 1000;
+    border-radius: 10px;
+    -webkit-backdrop-filter: blur(10px); /* 高斯模糊效果 */
+    backdrop-filter: blur(10px);
+    transition: transform 0.3s ease-in-out;
+}
+
+nav.sidebar.hidden {
+    transform: translateX(-160px);
+}
+
+nav.sidebar ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+nav.sidebar ul li {
+    margin: 10px 0;
+}
+
+nav.sidebar ul li a {
+    color: #fff;
+    text-decoration: none;
+    border-radius: 5px;
+    display: block;
+    padding: 10px;
+    transition: background-color 0.3s;
+}
+
+nav.sidebar ul li a:hover {
+    background-color: rgba(255, 255, 255, 0.8);
+    color: #000;
+/*  border-bottom: 2px solid rgba(64, 64, 64, 0.3);*/
+/*  border-right: 2px solid rgba(64, 64, 64, 0.3);*/
+    
+}
+
+.content-wrapper {
+    margin-left: 180px;
+    padding-top: 100px; /* 确保内容不被 header 覆盖 */
+    margin-right: 20px;
+    overflow-y: auto; /* 确保内容可滚动 */
+    height: calc(100vh - 60px); /* 高度为视口高度减去 header 高度 */
+}
+
+header.banner {
+    background-color: rgba(128, 128, 128, 0.3);
+    padding: 20px;
+    text-align: center;
+    border-bottom: 2px solid #555;
+    border-radius: 10px;
+    -webkit-backdrop-filter: blur(10px); /* 高斯模糊效果 */
+    backdrop-filter: blur(10px);
+    position: fixed; /* 固定 header */
+    top: 10px;
+    left:10px;
+    right: 10px;
+    z-index: 1000;
+}
+
+.lazy {
+    display: block;
+    width: 100%;
+    height: auto;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+}
+
+.lazy.loaded {
+    opacity: 1;
+}
+
+main.content {
+    margin-top: 50px;
+    margin-bottom: 120px;
+    padding: 20px;
+    background-color: rgba(255, 255, 255, 0.8);
+    color: #000;
+    border-radius: 10px;
+    -webkit-backdrop-filter: blur(10px); /* 高斯模糊效果 */
+    backdrop-filter: blur(10px);
+}
+
+main.content section {
+    margin-bottom: 20px;
+}
+
+main.content h2 {
+    border-bottom: 2px solid #444;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+}
+
+.update-container {
+    display: flex;
+    flex-wrap: wrap; /* 允许换行 */
+    gap: 0px; /* 项目之间的间距 */
+    justify-content: center;
+}
+.update-container::after {
+    content: "";
+    flex: 1 1 100%;
+    max-width: 800px;
+}
+
+.update-item {
+    display: flex;
+    flex-direction: row;
+    height: 200px; /* 固定 update-item 的高度为200px */
+/*  margin-bottom: 10px;*/
+    margin-top: 10px;
+/*  background-color: rgba(255, 255, 255, 0.8);*/
+    border-radius: 10px;
+    overflow: hidden;
+    align-items: center;
+    padding: 10px;
+    flex: 1 1 100%; /* 项目根据内容自动调整宽度 */
+    max-width: 800px; /* 设置最大宽度 */
+    box-sizing: border-box;
+}
+
+.update-image {
+    position: relative;
+    flex: 0 0 300px; /* 固定图片容器宽度为300px (3:2比例) */
+    height: 100%;
+    border: 5px solid #FFFFFF;
+    border-radius: 10px;
+    transition: transform 0.3s ease-in-out;
+    z-index: 1000;
+}
+
+.update-image::before {
+    content: "";
+    display: block;
+    padding-top: 66.67%; /* 3:2比例 (3/2 * 100%) */
+}
+
+
+.update-image img {
+    position: absolute;
+    border-radius: 5px;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* 保持图片的比例裁切 */
+    
+}
+.update-image:hover {
+    transform: scale(1.03);
+}
+
+.update-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    position: relative;
+    overflow: hidden;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 0 15px 15px 0;
+    color: #fff;
+    height: 160px;
+    box-sizing: border-box;
+}
+
+.update-title {
+    font-size: 18px;
+    font-weight: bold;
+    flex-shrink: 0; /* 确保标题不缩小 */
+    margin-bottom: 5px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+    padding: 15px;
+    background-color: rgba(0, 0, 0, 0.3);
+    align-items: flex-start;
+    line-height: normal; /* 确保行高正常 */
+}
+
+.update-main {
+    flex: 1; /* 占据剩余空间 */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2; /* 显示的行数 */
+    -webkit-box-orient: vertical; /* 垂直排列子元素 */
+    white-space: pre-line; /* 保留文本中的换行符 */
+}
+
+.update-main p {
+    margin: 0; /* 清除段落的外边距 */
+    padding: 0px 15px; /* 添加一些内边距以确保文本不贴边 */
+    margin-top: -10px;
+    text-overflow: ellipsis; /* 使用省略号表示溢出的文本 */
+    overflow: hidden; /* 隐藏溢出的文本 */
+    display: -webkit-box; /* 设置成弹性盒子模型 */
+    -webkit-line-clamp: 2; /* 显示的行数 */
+    -webkit-box-orient: vertical; /* 垂直排列子元素 */
+    white-space: pre-line; /* 保留文本中的换行符 */
+    word-break: break-all; /* 允许在任何字符间换行 */
+}
+
+.update-time {
+    display: flex;
+    flex-direction: row;
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background-color: rgba(255, 255, 255, 0.7);
+    color: #000;
+    padding: 5px;
+    border-radius: 10px;
+    font-size: 12px;
+    width: 140px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+/* 模态窗口样式 */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1001;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.8);
+}
+
+.modal-content {
+    background-color: #fefefe;
+    color: #000; /* 设置模态中文字的颜色为黑色 */
+    margin: 15% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    max-height: 70%;
+    overflow-y: auto;
+    border-radius: 10px;
+}
+/*--------------------------------------------------------------------*/
+
+
+
+/*--------------------------------------------------------------------*/
+.gallery-row {
+/*  display: flex;*/
+/*  justify-content: space-between;*/
+/*  margin-bottom: 20px;*/
+/*  margin-top: 20px;*/
+    display: flex;
+    flex-wrap: wrap; /* 允许换行 */
+    justify-content: center;
+    gap: 1rem; /* 默认间距 */
+    padding: 1rem;
+    padding-bottom: 3rem; /* 设置与 footer 的距离 */
+    position: relative;
+    z-index: 1;
+    max-width: 1000px; /* 固定瀑布流宽度 */
+    margin: 1rem auto 3rem auto; /* 居中对齐，并设置顶部底部边距 */
+}
+
+
+main.content .gallery-item {
+    background-size: cover;
+    background-position: center;
+    width: calc(50% - 10px); /* 每行两个元素，占50%减去间距 */
+    position: relative; /* 设置为 relative，以便绝对定位内容 */
+    margin: 10 10px; /* 左右各5px的间距，总间距10px */
+    border-radius: 10px;
+    overflow: hidden; /* 确保内容不会溢出 */
+    color: #fff;
+    display: flex;
+    align-items: flex-end;
+    transition: transform 0.3s, filter 0.3s, box-shadow 0.3s;
+    box-sizing: border-box;
+}
+
+main.content .gallery-item::before {
+    content: "";
+    display: block;
+    padding-bottom: 66.67%; /* 3:2比例（100% / (3/2)） */
+}
+.gallery-row::after {
+    content: "";
+    width: calc(50% - 10px);
+}
+
+main.content .gallery-item-content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: flex-end;
+    padding: 20px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 10px;
+}
+
+main.content .gallery-item h3 {
+    margin: 10px;
+    padding: 10px;
+    border-radius: 10px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 10px;
+    -webkit-backdrop-filter: blur(10px); /* 高斯模糊效果 */
+}
+
+main.content .gallery-item p {
+    display: none;
+}
+
+main.content .gallery-item:hover {
+    transform: scale(1.02);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+}
+
+main.content p {
+    line-height: 1.6;
+}
+
+main.content .gallery-item h3:hover {
+    background-color: rgba(255, 255, 255, 0.8);
+    color: rgba(0, 0, 0, 1);
+    transition: background-color 0.3s, color 0.3s; /* 添加过渡效果 */
+}
+
+@media (max-width: 800px) {
+    .toggle-sidebar {
+            display: block;
+            left: 20px; /* 初始位置设置为20px */
+            transition: left 0.3s ease-in-out; /* 添加过渡效果 */
+        }
+    nav.sidebar {
+        transform: translateX(-160px);
+    }
+
+    nav.sidebar.hidden {
+        transform: translateX(0);
+    }
+    nav.sidebar.hidden ~ .toggle-sidebar {
+            left: 180px; /* sidebar 显示时，toggle-sidebar 跟随移动 */
+        }
+
+    .content-wrapper {
+        margin-left: 20px;
+        margin-right: 20px;
+    }
+
+    .gallery-row {
+        flex-direction: column;
+        max-width: 600px;
+    }
+
+    main.content .gallery-item {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+}
+/*  .update-item {*/
+/*          flex-direction: column;*/
+/*  }*/
+/*  */
+/*  .update-text {*/
+/*          margin-left: 0;*/
+/*          margin-top: 20px;*/
+/*  }*/
+
