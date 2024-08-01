@@ -6,7 +6,7 @@
 2. 打开终端
 
 ```bash
-cd /Users/yangkaixin/Code/mainquest
+cd ./mainquest
 python3 ./picup.py
 ```
 
