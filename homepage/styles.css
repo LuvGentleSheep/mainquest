@@ -259,8 +259,10 @@ main.content h2 {
     background-color: rgba(0, 0, 0, 0.3);
     align-items: flex-start;
     line-height: normal; /* 确保行高正常 */
+    white-space: nowrap; /* 不换行 */
+    text-overflow: ellipsis; /* 使用省略号 */
+    width: 100%; /* 确保标题占满可用宽度 */
 }
-
 .update-main {
     flex: 1; /* 占据剩余空间 */
     overflow: hidden;
@@ -446,6 +448,8 @@ main.content .gallery-item h3:hover {
         width: 100%;
         margin-bottom: 10px;
     }
+    
+    
 }
 /*  .update-item {*/
 /*          flex-direction: column;*/
