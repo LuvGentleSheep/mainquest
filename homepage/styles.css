@@ -203,7 +203,7 @@ main.content h2 {
 
 .update-image {
     position: relative;
-    flex: 0 0 300px; /* 固定图片容器宽度为300px (3:2比例) */
+    flex: 0 1 300px; /* 固定图片容器宽度为300px (3:2比例) */
     height: 100%;
     border: 5px solid #FFFFFF;
     border-radius: 10px;
@@ -417,7 +417,7 @@ main.content .gallery-item h3:hover {
     transition: background-color 0.3s, color 0.3s; /* 添加过渡效果 */
 }
 
-@media (max-width: 800px) {
+@media (max-width: 400px) {
     .toggle-sidebar {
             display: block;
             left: 20px; /* 初始位置设置为20px */
@@ -448,7 +448,7 @@ main.content .gallery-item h3:hover {
         width: 100%;
         margin-bottom: 10px;
     }
-    
+
     
 }
 /*  .update-item {*/
