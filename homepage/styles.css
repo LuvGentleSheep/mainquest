@@ -231,6 +231,27 @@ main.content h2 {
 .update-image:hover {
     transform: scale(1.03);
 }
+.image-title {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    right: 10px;
+    background-color: rgba(0, 0, 0, 0.6); /* 半透明背景 */
+    color: #fff;
+    font-weight: bold;
+    padding: 5px;
+    border-radius: 5px;
+    text-align: center;
+    display: none; /* 默认隐藏 */
+    z-index: 10;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px); /* 高斯模糊效果 */
+}
+.image-title:hover {
+    background-color: rgba(255, 255, 255, 0.8);
+    color: rgba(0, 0, 0, 1);
+    transition: background-color 0.3s, color 0.3s; /* 添加过渡效果 */
+}
 
 .update-content {
     flex: 1;
@@ -307,13 +328,15 @@ main.content h2 {
 .modal {
     display: none;
     position: fixed;
-    z-index: 1001;
+    z-index: 3000;
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
     overflow: auto;
     background-color: rgba(0, 0, 0, 0.8);
+    
+    
 }
 
 .modal-content {
@@ -417,7 +440,7 @@ main.content .gallery-item h3:hover {
     transition: background-color 0.3s, color 0.3s; /* 添加过渡效果 */
 }
 
-@media (max-width: 400px) {
+@media (max-width: 440px) {
     .toggle-sidebar {
             display: block;
             left: 20px; /* 初始位置设置为20px */
@@ -438,18 +461,28 @@ main.content .gallery-item h3:hover {
         margin-left: 20px;
         margin-right: 20px;
     }
+    .update-item {
+        align-items: center;
+        justify-content: center; /* 垂直居中对齐 */
+    }
+    .update-content {
+        display: none;
+    }
+    .image-title {
+            display: block; /* 小屏幕下显示标题 */
+        }
 
+}
+@media (max-width: 800px) {
     .gallery-row {
         flex-direction: column;
         max-width: 600px;
     }
-
+    
     main.content .gallery-item {
         width: 100%;
         margin-bottom: 10px;
     }
-
-    
 }
 /*  .update-item {*/
 /*          flex-direction: column;*/

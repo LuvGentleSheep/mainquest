@@ -97,6 +97,25 @@ document.addEventListener("DOMContentLoaded", function() {
             modal.style.display = 'block';
         });
     });
+    document.querySelectorAll('.update-item').forEach(item => {
+        const titleText = item.querySelector('.update-title').textContent;
+        const imageTitle = item.querySelector('.image-title');
+        const mainContent = item.querySelector('.update-main p').innerHTML;
+        
+        // 更新 image-title 的文本
+        imageTitle.textContent = titleText; 
+        
+        // 添加点击事件监听
+        imageTitle.addEventListener('click', function(event) {
+            event.preventDefault(); // 阻止默认链接跳转
+            event.stopPropagation(); // 阻止事件冒泡
+            const modal = document.getElementById('modal');
+            const modalText = document.getElementById('modal-text');
+            modalText.innerHTML = mainContent; // 在模态视图中显示 main 内容
+            modal.style.display = 'block';
+        });
+    });
+
     
     // 模态窗口点击事件，点击关闭模态窗口
     document.getElementById('modal').addEventListener('click', function() {
