@@ -1,66 +1,12 @@
-import os
-import sys
-import subprocess
-from PIL import Image
-from datetime import datetime
-from tqdm import tqdm
 
-def compress_images(project_name, target_size=(1800, 1200)):
-    gallery_path = os.path.join('project', project_name, 'public', 'gallery')
-    background_path = os.path.join('project', project_name, 'public', 'background')
-    
-    # 确保 background 目录存在
-    os.makedirs(background_path, exist_ok=True)
-    
-    image_files = sorted([img for img in os.listdir(gallery_path) if img.lower().endswith(('png', 'jpg', 'jpeg'))])
-    
-    with tqdm(total=len(image_files), desc="Compressing images") as pbar:
-        for img_name in image_files:
-            img_path = os.path.join(gallery_path, img_name)
-            img = Image.open(img_path)
-            img = img.convert("RGB")  # 保证是RGB模式
-            img.thumbnail(target_size)
-            output_path = os.path.join(background_path, img_name)
-            img.save(output_path, "JPEG", quality=70)
-#           print(f"Compressed {img_name} to {output_path}")
-            pbar.update(1)
-
-def generate_texts(project_name):
-    gallery_path = os.path.join('project', project_name, 'public', 'gallery')
-    background_path = os.path.join('project', project_name, 'public', 'background')
-
-    # 获取 gallery 和 background 中的图片文件名，并按名称排序
-
-    background_images = sorted([img for img in os.listdir(background_path) if img.lower().endswith(('png', 'jpg', 'jpeg'))])
-
-    # 生成文本输出
-    output1 = f"<title>{project_name}</title>"
-    
-    output2 = ''
-    for i, img in enumerate(background_images):
-        output2 += f'  <img class="lazy" data-src="./public/background/{img}" alt="背景图片{i+1}">\n'
-    output2 += '</div>'
-    output3 = f'<header>\n    <h1>{project_name}</h1>\n</header>\n<div class="gallery" id="gallery">\n'
-
-    # 保存输出到文本文件
-    with open(os.path.join('project', project_name, 'output1.txt'), 'w', encoding='utf-8') as f:
-        f.write(output1)
-    
-    with open(os.path.join('project', project_name, 'output2.txt'), 'w', encoding='utf-8') as f:
-        f.write(output2)
-    
-    with open(os.path.join('project', project_name, 'output3.txt'), 'w', encoding='utf-8') as f:
-        f.write(output3)
-
-def create_index_html(project_name):
-    file1_content = """
     <!DOCTYPE html>
     <html lang="zh-CN">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    """
-    file2_content = """
+    
+<title>漫展部分图片reforge</title>
+
         <style>
                 body, html {
                         margin: 0;
@@ -277,8 +223,109 @@ def create_index_html(project_name):
 <!-- 背景图片幻灯片 -->
 <div class="background-slideshow" id="background-slideshow">
 
-    """
-    file3_content = """
+    
+  <img class="lazy" data-src="./public/background/DSC00762.jpg" alt="背景图片1">
+  <img class="lazy" data-src="./public/background/DSC00770.jpg" alt="背景图片2">
+  <img class="lazy" data-src="./public/background/DSC00772.jpg" alt="背景图片3">
+  <img class="lazy" data-src="./public/background/DSC00815.jpg" alt="背景图片4">
+  <img class="lazy" data-src="./public/background/DSC00817.jpg" alt="背景图片5">
+  <img class="lazy" data-src="./public/background/DSC00819.jpg" alt="背景图片6">
+  <img class="lazy" data-src="./public/background/DSC00820.jpg" alt="背景图片7">
+  <img class="lazy" data-src="./public/background/DSC00839.jpg" alt="背景图片8">
+  <img class="lazy" data-src="./public/background/DSC00845.jpg" alt="背景图片9">
+  <img class="lazy" data-src="./public/background/DSC01033.jpg" alt="背景图片10">
+  <img class="lazy" data-src="./public/background/DSC01047.jpg" alt="背景图片11">
+  <img class="lazy" data-src="./public/background/DSC01050.jpg" alt="背景图片12">
+  <img class="lazy" data-src="./public/background/DSC01055.jpg" alt="背景图片13">
+  <img class="lazy" data-src="./public/background/DSC01102.jpg" alt="背景图片14">
+  <img class="lazy" data-src="./public/background/DSC01103.jpg" alt="背景图片15">
+  <img class="lazy" data-src="./public/background/DSC01145.jpg" alt="背景图片16">
+  <img class="lazy" data-src="./public/background/DSC01150.jpg" alt="背景图片17">
+  <img class="lazy" data-src="./public/background/DSC01180.jpg" alt="背景图片18">
+  <img class="lazy" data-src="./public/background/DSC01187.jpg" alt="背景图片19">
+  <img class="lazy" data-src="./public/background/DSC01264.jpg" alt="背景图片20">
+  <img class="lazy" data-src="./public/background/DSC01265.jpg" alt="背景图片21">
+  <img class="lazy" data-src="./public/background/DSC01276.jpg" alt="背景图片22">
+  <img class="lazy" data-src="./public/background/DSC01282.jpg" alt="背景图片23">
+  <img class="lazy" data-src="./public/background/DSC01285.jpg" alt="背景图片24">
+  <img class="lazy" data-src="./public/background/DSC01286.jpg" alt="背景图片25">
+  <img class="lazy" data-src="./public/background/DSC01289.jpg" alt="背景图片26">
+  <img class="lazy" data-src="./public/background/DSC01294.jpg" alt="背景图片27">
+  <img class="lazy" data-src="./public/background/DSC01324.jpg" alt="背景图片28">
+  <img class="lazy" data-src="./public/background/DSC01328.jpg" alt="背景图片29">
+  <img class="lazy" data-src="./public/background/DSC01329.jpg" alt="背景图片30">
+  <img class="lazy" data-src="./public/background/DSC01332.jpg" alt="背景图片31">
+  <img class="lazy" data-src="./public/background/DSC01343.jpg" alt="背景图片32">
+  <img class="lazy" data-src="./public/background/DSC01397.jpg" alt="背景图片33">
+  <img class="lazy" data-src="./public/background/DSC01717.jpg" alt="背景图片34">
+  <img class="lazy" data-src="./public/background/DSC01738.jpg" alt="背景图片35">
+  <img class="lazy" data-src="./public/background/DSC01740.jpg" alt="背景图片36">
+  <img class="lazy" data-src="./public/background/DSC09267.jpg" alt="背景图片37">
+  <img class="lazy" data-src="./public/background/DSC09268.jpg" alt="背景图片38">
+  <img class="lazy" data-src="./public/background/DSC09290.jpg" alt="背景图片39">
+  <img class="lazy" data-src="./public/background/DSC09306.jpg" alt="背景图片40">
+  <img class="lazy" data-src="./public/background/DSC09349.jpg" alt="背景图片41">
+  <img class="lazy" data-src="./public/background/DSC09350.jpg" alt="背景图片42">
+  <img class="lazy" data-src="./public/background/DSC09359.jpg" alt="背景图片43">
+  <img class="lazy" data-src="./public/background/DSC09437.jpg" alt="背景图片44">
+  <img class="lazy" data-src="./public/background/DSC09872.jpg" alt="背景图片45">
+  <img class="lazy" data-src="./public/background/DSC09977.jpg" alt="背景图片46">
+  <img class="lazy" data-src="./public/background/DSC09980.jpg" alt="背景图片47">
+</div>
+<header>
+    <h1>漫展部分图片reforge</h1>
+</header>
+<div class="gallery" id="gallery">
+
+  <img class="lazy" data-src="./public/background/DSC00762.jpg" alt="背景图片1">
+  <img class="lazy" data-src="./public/background/DSC00770.jpg" alt="背景图片2">
+  <img class="lazy" data-src="./public/background/DSC00772.jpg" alt="背景图片3">
+  <img class="lazy" data-src="./public/background/DSC00815.jpg" alt="背景图片4">
+  <img class="lazy" data-src="./public/background/DSC00817.jpg" alt="背景图片5">
+  <img class="lazy" data-src="./public/background/DSC00819.jpg" alt="背景图片6">
+  <img class="lazy" data-src="./public/background/DSC00820.jpg" alt="背景图片7">
+  <img class="lazy" data-src="./public/background/DSC00839.jpg" alt="背景图片8">
+  <img class="lazy" data-src="./public/background/DSC00845.jpg" alt="背景图片9">
+  <img class="lazy" data-src="./public/background/DSC01033.jpg" alt="背景图片10">
+  <img class="lazy" data-src="./public/background/DSC01047.jpg" alt="背景图片11">
+  <img class="lazy" data-src="./public/background/DSC01050.jpg" alt="背景图片12">
+  <img class="lazy" data-src="./public/background/DSC01055.jpg" alt="背景图片13">
+  <img class="lazy" data-src="./public/background/DSC01102.jpg" alt="背景图片14">
+  <img class="lazy" data-src="./public/background/DSC01103.jpg" alt="背景图片15">
+  <img class="lazy" data-src="./public/background/DSC01145.jpg" alt="背景图片16">
+  <img class="lazy" data-src="./public/background/DSC01150.jpg" alt="背景图片17">
+  <img class="lazy" data-src="./public/background/DSC01180.jpg" alt="背景图片18">
+  <img class="lazy" data-src="./public/background/DSC01187.jpg" alt="背景图片19">
+  <img class="lazy" data-src="./public/background/DSC01264.jpg" alt="背景图片20">
+  <img class="lazy" data-src="./public/background/DSC01265.jpg" alt="背景图片21">
+  <img class="lazy" data-src="./public/background/DSC01276.jpg" alt="背景图片22">
+  <img class="lazy" data-src="./public/background/DSC01282.jpg" alt="背景图片23">
+  <img class="lazy" data-src="./public/background/DSC01285.jpg" alt="背景图片24">
+  <img class="lazy" data-src="./public/background/DSC01286.jpg" alt="背景图片25">
+  <img class="lazy" data-src="./public/background/DSC01289.jpg" alt="背景图片26">
+  <img class="lazy" data-src="./public/background/DSC01294.jpg" alt="背景图片27">
+  <img class="lazy" data-src="./public/background/DSC01324.jpg" alt="背景图片28">
+  <img class="lazy" data-src="./public/background/DSC01328.jpg" alt="背景图片29">
+  <img class="lazy" data-src="./public/background/DSC01329.jpg" alt="背景图片30">
+  <img class="lazy" data-src="./public/background/DSC01332.jpg" alt="背景图片31">
+  <img class="lazy" data-src="./public/background/DSC01343.jpg" alt="背景图片32">
+  <img class="lazy" data-src="./public/background/DSC01397.jpg" alt="背景图片33">
+  <img class="lazy" data-src="./public/background/DSC01717.jpg" alt="背景图片34">
+  <img class="lazy" data-src="./public/background/DSC01738.jpg" alt="背景图片35">
+  <img class="lazy" data-src="./public/background/DSC01740.jpg" alt="背景图片36">
+  <img class="lazy" data-src="./public/background/DSC09267.jpg" alt="背景图片37">
+  <img class="lazy" data-src="./public/background/DSC09268.jpg" alt="背景图片38">
+  <img class="lazy" data-src="./public/background/DSC09290.jpg" alt="背景图片39">
+  <img class="lazy" data-src="./public/background/DSC09306.jpg" alt="背景图片40">
+  <img class="lazy" data-src="./public/background/DSC09349.jpg" alt="背景图片41">
+  <img class="lazy" data-src="./public/background/DSC09350.jpg" alt="背景图片42">
+  <img class="lazy" data-src="./public/background/DSC09359.jpg" alt="背景图片43">
+  <img class="lazy" data-src="./public/background/DSC09437.jpg" alt="背景图片44">
+  <img class="lazy" data-src="./public/background/DSC09872.jpg" alt="背景图片45">
+  <img class="lazy" data-src="./public/background/DSC09977.jpg" alt="背景图片46">
+  <img class="lazy" data-src="./public/background/DSC09980.jpg" alt="背景图片47">
+</div>
+
     <!-- 模态视图 -->
     <div id="myModal" class="modal">
             <span class="close">&times;</span>
@@ -387,115 +434,4 @@ def create_index_html(project_name):
     </script>
     </body>
     </html>
-    """
-    output1_path = os.path.join('project', project_name, 'output1.txt')
-    output2_path = os.path.join('project', project_name, 'output2.txt')
-    output3_path = os.path.join('project', project_name, 'output3.txt')
-    index_html_path = os.path.join(f"./project/{project_name}/{project_name}_index.html")
     
-    # 读取所有文件的内容
-
-    with open(output1_path, 'r', encoding='utf-8') as f:
-        output1_content = f.read()
-    with open(output2_path, 'r', encoding='utf-8') as f:
-        output2_content = f.read()
-    with open(output3_path, 'r', encoding='utf-8') as f:
-        output3_content = f.read()
-
-    
-    # 按照指定顺序组合内容
-    combined_content = (
-        file1_content + '\n' +
-        output1_content + '\n' +
-        file2_content + '\n' +
-        output2_content + '\n' +
-        output3_content + '\n' +
-        output2_content + '\n' +
-        file3_content
-    )
-    
-    # 写入 index.html 文件
-    with open(index_html_path, 'w', encoding='utf-8') as f:
-        f.write(combined_content)
-        
-    # 删除临时文件
-        os.remove(output1_path)
-        os.remove(output2_path)
-        os.remove(output3_path)
-        print("临时文件已删除。")
-        
-def update_homepage_and_gallery(project_name, title, content, image_name):
-    # 获取本地时间并格式化
-    local_tz = datetime.now().astimezone().tzinfo
-    current_time = datetime.now().astimezone().strftime(f"%Y-%m-%d %H:%M:%S")
-    
-    # 生成 homepage_index.html 更新内容
-    homepage_update = f"""
-    <div class="update-item">
-        <div class="update-image">
-            <a href="../project/{project_name}/{project_name}_index.html">
-                <img class="lazy" data-src="../project/{project_name}/public/background/{image_name}" alt="更新图片">
-                <div class="image-title"></div>
-            </a>
-        </div>
-        <div class="update-content">
-            <div class="update-title">{title}</div>
-            <div class="update-main clickable">
-                <p>{content}</p>
-            </div>
-            <div class="update-time">{current_time}</div>
-        </div>
-    </div>
-    """
-    
-    # 生成 gallery.html 更新内容
-    gallery_update = f"""
-    <div class="gallery-item clickable" data-link="../project/{project_name}/{project_name}_index.html" data-src="../project/{project_name}/public/background/{image_name}">
-        <h3>{title}</h3>
-        <p>{content}</p>
-    </div>
-    """
-    
-    # 更新 homepage_index.html
-    homepage_index_path = './homepage/homepage_index.html'
-    with open(homepage_index_path, 'r+', encoding='utf-8') as file:
-        content = file.read()
-        insert_position = content.find('<div class="update-container">') + len('<div class="update-container">')
-        updated_content = content[:insert_position] + homepage_update + content[insert_position:]
-        file.seek(0)
-        file.write(updated_content)
-        file.truncate()
-        
-    # 更新 gallery.html
-    gallery_path = './homepage/gallery.html'
-    with open(gallery_path, 'r+', encoding='utf-8') as file:
-        content = file.read()
-        insert_position = content.find('<div class="gallery-row">') + len('<div class="gallery-row">')
-        updated_content = content[:insert_position] + gallery_update + content[insert_position:]
-        file.seek(0)
-        file.write(updated_content)
-        file.truncate()
-        
-    print("homepage_index.html 和 gallery.html 已更新。")
-    
-if __name__ == "__main__":
-    project_path = input("请拖拽项目文件夹到此终端并按回车键: ").strip()
-    project_name = os.path.basename(os.path.normpath(project_path))
-    compress_images(project_name)
-    generate_texts(project_name)
-    create_index_html(project_name)
-    print(f"{project_name}_index.html 文件已生成。")
-    
-    title = input("请输入标题名称: ").strip()
-    content = input("请输入正文内容: ").strip()
-    
-    # 打开文件管理器并定位到指定目录
-    background_path = os.path.join(project_path, 'public', 'background')
-    if os.name == 'nt':  # Windows
-        subprocess.Popen(f'explorer "{background_path}"')
-    elif os.name == 'posix':  # macOS, Linux
-        subprocess.Popen(['open', background_path])
-    
-    image_path = input("请拖拽一张图片作为封面图: ").strip()
-    image_name = os.path.basename(image_path)
-    update_homepage_and_gallery(project_name, title, content, image_name)
