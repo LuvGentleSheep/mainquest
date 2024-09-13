@@ -18,14 +18,19 @@
     <button class="toggle-sidebar" onclick="toggleSidebar()">☰</button>
     <nav class="sidebar">
         <ul>
-            <li><a href="#" class="sidebar-link" onclick="changeContent('recent-updates'); return false;">最近更新</a></li>
-            <li><a href="#" class="sidebar-link" onclick="changeContent('journal'); return false;">日志 🛠️</a></li>
-            <li><a href="#" class="sidebar-link" onclick="changeContent('gallery'); return false;">影集</a></li>
-            <li><a href="#" class="sidebar-link" onclick="changeContent('about'); return false;">关于 🛠️</a></li>
+            <li><a href="./homepage_index.html" class="sidebar-link" onclick="changeContent('recent-updates')">最近更新</a></li>
+            <li><a href="./journal.html" class="sidebar-link" onclick="changeContent('journal')">日志 🛠️</a></li>
+            <li><a href="./gallery.html" class="sidebar-link" onclick="changeContent('gallery')">影集</a></li>
+            <li><a href="./about.html" class="sidebar-link" onclick="changeContent('about')">关于 🛠️</a></li>
         </ul>
+
     </nav>
-    <div class="content-wrapper hidden-scrollbar">
-        <main class="content" id="content">
+    <div class="content-wrapper">
+        <main class="content">
+            <section id="about">
+                <h2>Meet Kelvin 👋</h2>
+                <p>这里是关于的内容。</p>
+            </section>
         </main>
     </div>
     <div class="modal" id="modal">

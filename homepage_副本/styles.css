@@ -51,7 +51,7 @@ a {
     display: none;
     position: fixed;
     font-size: 24px;
-    top: 75px;
+    top: 85px;
     left: 20px;
     background-color: rgba(128, 128, 128, 0.3);
     border-radius: 10px;
@@ -456,11 +456,6 @@ main.content .gallery-item h3:hover {
     nav.sidebar.hidden ~ .toggle-sidebar {
             left: 180px; /* sidebar 显示时，toggle-sidebar 跟随移动 */
         }
-        
-    header.banner {
-        padding: 0px;
-    }
-
 
     .content-wrapper {
         margin-left: 20px;
@@ -476,9 +471,6 @@ main.content .gallery-item h3:hover {
     .image-title {
             display: block; /* 小屏幕下显示标题 */
         }
-    header.banner {
-        padding: 0px;
-    }
 
 }
 @media (max-width: 800px) {

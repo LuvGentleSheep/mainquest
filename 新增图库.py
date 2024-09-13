@@ -457,7 +457,7 @@ def update_homepage_and_gallery(project_name, title, content, image_name):
     """
     
     # 更新 homepage_index.html
-    homepage_index_path = './homepage/homepage_index.html'
+    homepage_index_path = './homepage/recent-updates.html'
     with open(homepage_index_path, 'r+', encoding='utf-8') as file:
         content = file.read()
         insert_position = content.find('<div class="update-container">') + len('<div class="update-container">')
@@ -476,7 +476,7 @@ def update_homepage_and_gallery(project_name, title, content, image_name):
         file.write(updated_content)
         file.truncate()
         
-    print("homepage_index.html 和 gallery.html 已更新。")
+    print("recent-updates.html 和 gallery.html 已更新。")
     
 if __name__ == "__main__":
     project_path = input("请拖拽项目文件夹到此终端并按回车键: ").strip()

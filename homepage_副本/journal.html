@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kelvin's Blog</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <div class="background-slideshow" id="background-slideshow">
+        <img class="lazy" data-src="./background/Fengjing_Soyo_Wind.jpeg" alt="背景图片1">
+        <img class="lazy" data-src="./background/Fantasy_Flower_in_Sky.jpeg" alt="背景图片2">
+        <img class="lazy" data-src="./background/風景ストリーマオーバーラン.jpeg" alt="背景图片3">
+    </div>
+    <header class="banner">
+        <h1>Kelvin's Daily Photography</h1>
+    </header>
+    <button class="toggle-sidebar" onclick="toggleSidebar()">☰</button>
+    <nav class="sidebar">
+        <ul>
+            <li><a href="./homepage_index.html" class="sidebar-link" onclick="changeContent('recent-updates')">最近更新</a></li>
+            <li><a href="./journal.html" class="sidebar-link" onclick="changeContent('journal')">日志 🛠️</a></li>
+            <li><a href="./gallery.html" class="sidebar-link" onclick="changeContent('gallery')">影集</a></li>
+            <li><a href="./about.html" class="sidebar-link" onclick="changeContent('about')">关于 🛠️</a></li>
+        </ul>
+
+    </nav>
+    <div class="content-wrapper hidden-scrollbar">
+        <main class="content">
+            <section id="journal">
+                <h2>Journal</h2>
+                <article class="journal-entry">
+                    <h3>2024-07-28 07:56:16 GMT+8</h3>
+                    <p>正在研究怎么把 markdown 折腾过来。</p>
+                </article>
+                <article class="journal-entry">
+                    <h3>主页画师 luoyu</h3>
+                    <p>https://www.pixiv.net/users/15778566</p>
+                </article>
+                <article class="journal-entry">
+                    <h3>status</h3>
+                    <p>目前整理了2023年广州漫展的cosplay作品</p>
+                </article>
+                
+            </section>
+        </main>
+    </div>
+    <div class="modal" id="modal">
+        <div class="modal-content" id="modal-content">
+            <p id="modal-text"></p>
+        </div>
+    </div>
+    <script src="./script.js" ></script>
+</body>
+</html>
