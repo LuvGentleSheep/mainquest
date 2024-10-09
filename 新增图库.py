@@ -21,7 +21,7 @@ def compress_images(project_name, target_size=(1800, 1200)):
             img = img.convert("RGB")  # 保证是RGB模式
             img.thumbnail(target_size)
             output_path = os.path.join(background_path, img_name)
-            img.save(output_path, "JPEG", quality=70)
+            img.save(output_path, "JPEG", quality=70,icc_profile=img.info.get('icc_profile'))
 #           print(f"Compressed {img_name} to {output_path}")
             pbar.update(1)
 
