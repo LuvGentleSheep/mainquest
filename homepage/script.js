@@ -139,7 +139,7 @@ function initContent() {
 
 document.addEventListener("DOMContentLoaded", function() {
     initContent();
-    startSlideshow();
+    setTimeout(startSlideshow, 500);
     changeContent('recent-updates');
     // 模态窗口点击事件，点击关闭模态窗口
     document.getElementById('modal').addEventListener('click', function() {
