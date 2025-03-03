@@ -1,6 +1,7 @@
 import os
 import sys
 import subprocess
+import webbrowser
 from PIL import Image
 from datetime import datetime
 from tqdm import tqdm
@@ -479,8 +480,15 @@ def update_homepage_and_gallery(project_name, title, content, image_name):
     print("recent-updates.html 和 gallery.html 已更新。")
     
 if __name__ == "__main__":
-    project_path = input("请拖拽项目文件夹到此终端并按回车键: ").strip()
-    project_name = os.path.basename(os.path.normpath(project_path))
+    # 获取并处理用户输入的项目路径
+    raw_project_path = input("请拖拽项目文件夹到此终端并按回车键: ").strip()
+    if os.name != 'nt':  # 针对 macOS/Linux
+        processed_project_path = raw_project_path.replace("\\ ", " ")
+    else:
+        processed_project_path = raw_project_path
+    project_path = os.path.normpath(processed_project_path)
+    
+    project_name = os.path.basename(project_path)
     compress_images(project_name)
     generate_texts(project_name)
     create_index_html(project_name)
@@ -489,13 +497,27 @@ if __name__ == "__main__":
     title = input("请输入标题名称: ").strip()
     content = input("请输入正文内容: ").strip()
     
-    # 打开文件管理器并定位到指定目录
+    # 构造 background 目录路径
     background_path = os.path.join(project_path, 'public', 'background')
+    # 打开文件管理器并定位到指定目录
     if os.name == 'nt':  # Windows
         subprocess.Popen(f'explorer "{background_path}"')
     elif os.name == 'posix':  # macOS, Linux
+        # macOS 上使用 'open'，Linux 可根据发行版改为 'xdg-open'
         subprocess.Popen(['open', background_path])
     
     image_path = input("请拖拽一张图片作为封面图: ").strip()
     image_name = os.path.basename(image_path)
     update_homepage_and_gallery(project_name, title, content, image_name)
+    
+    # 获取当前脚本所在目录
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # 启动本地 HTTP 服务器，并在默认浏览器中打开 http://localhost:8000
+    # 这里设置工作目录为脚本所在目录，即包含 index.html 的目录
+    server_process = subprocess.Popen([sys.executable, "-m", "http.server", "8000"], cwd=script_dir)
+    print("HTTP 服务器已启动，访问地址： http://localhost:8000")
+    
+    # 打开默认浏览器访问本地服务器
+    webbrowser.open("http://localhost:8000")
+    

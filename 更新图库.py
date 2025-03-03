@@ -1,4 +1,7 @@
 import os
+import sys
+import subprocess
+import webbrowser
 from PIL import Image
 import re
 
@@ -69,5 +72,40 @@ def update_gallery(project_path):
     print(f"HTML updated in {html_path}")
 
 if __name__ == "__main__":
-    project_path = input("请拖拽项目文件夹到此终端并按回车键: ").strip()
+    # 自动打开与脚本同目录下的 project 文件夹
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_folder = os.path.join(current_dir, "project")
+    
+    if os.path.isdir(project_folder):
+        if sys.platform.startswith("darwin"):  # macOS
+            subprocess.Popen(["open", project_folder])
+        elif sys.platform.startswith("win"):
+            os.startfile(project_folder)
+        elif sys.platform.startswith("linux"):
+            subprocess.Popen(["xdg-open", project_folder])
+        else:
+            print("当前系统不支持自动打开文件夹功能。")
+    else:
+        print("没有找到 'project' 文件夹，请检查文件目录。")
+    
+    # 获取用户输入，并对路径进行预处理（针对非 Windows 系统去除用于转义空格的反斜杠）
+    raw_input_path = input("请拖拽项目文件夹到此终端并按回车键: ").strip()
+    if not sys.platform.startswith("win"):
+        # 将 "\ " 替换为空格，去除不必要的反斜杠
+        processed_path = raw_input_path.replace("\\ ", " ")
+    else:
+        processed_path = raw_input_path
+    project_path = os.path.normpath(processed_path)
+    
     update_gallery(project_path)
+    
+    # 获取当前脚本所在目录
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # 启动本地 HTTP 服务器，并在默认浏览器中打开 http://localhost:8000
+    # 这里设置工作目录为脚本所在目录，即包含 index.html 的目录
+    server_process = subprocess.Popen([sys.executable, "-m", "http.server", "8000"], cwd=script_dir)
+    print("HTTP 服务器已启动，访问地址： http://localhost:8000")
+    
+    # 打开默认浏览器访问本地服务器
+    webbrowser.open("http://localhost:8000")
