@@ -102,10 +102,28 @@ if __name__ == "__main__":
     # 获取当前脚本所在目录
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # 启动本地 HTTP 服务器，并在默认浏览器中打开 http://localhost:8000
-    # 这里设置工作目录为脚本所在目录，即包含 index.html 的目录
-    server_process = subprocess.Popen([sys.executable, "-m", "http.server", "8000"], cwd=script_dir)
-    print("HTTP 服务器已启动，访问地址： http://localhost:8000")
+    # 端口
+    port = "8000"
     
-    # 打开默认浏览器访问本地服务器
-    webbrowser.open("http://localhost:8000")
+    # 检查端口是否被占用，如果是就杀掉占用该端口的进程
+    def free_port(port):
+        try:
+            result = subprocess.run(["lsof", "-i", f":{port}"], capture_output=True, text=True)
+            lines = result.stdout.strip().split("\n")
+            if len(lines) > 1:
+                for line in lines[1:]:
+                    pid = line.split()[1]
+                    print(f"关闭占用端口 {port} 的进程 PID: {pid}")
+                    subprocess.run(["kill", "-9", pid])
+        except Exception as e:
+            print(f"释放端口失败: {e}")
+            
+    # 步骤 1：释放端口
+    free_port(port)
+    
+    # 步骤 2：启动 HTTP 服务器
+    server_process = subprocess.Popen([sys.executable, "-m", "http.server", port], cwd=script_dir)
+    print(f"HTTP 服务器已启动，访问地址：http://localhost:{port}")
+    
+    # 步骤 3：打开浏览器
+    webbrowser.open(f"http://localhost:{port}")
