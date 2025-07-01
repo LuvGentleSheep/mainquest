@@ -386,7 +386,7 @@ def create_index_html(project_name):
             });
         });
     </script>
-    <!-- ========== 放映模式 MOD BEGIN (fixed Map usage) ========== -->
+    <!-- ========== 放映模式 MOD BEGIN (async-decode fixed) ========== -->
     <style>
     /* 按钮 */
     .slideshow-toggle{
@@ -425,83 +425,95 @@ def create_index_html(project_name):
     
     <script>
     (function(){
-        /* ——插入按钮—— */
+        /* ——— 插入按钮 ——— */
         const btn=document.createElement('button');
         btn.className='slideshow-toggle';btn.textContent='放映模式';
         document.body.appendChild(btn);
     
-        /* ——插入模态结构（双背景层）—— */
+        /* ——— 插入模态（双背景层） ——— */
         const modal=document.createElement('div');modal.className='slideshow-modal';
         modal.innerHTML=`<div id="bgA" class="slideshow-bg"></div>
                                             <div id="bgB" class="slideshow-bg"></div>
-                                            <img id="slideA" class="slide-img" alt="">
-                                            <img id="slideB" class="slide-img" alt="">`;
+                                            <img id="imgA" class="slide-img" alt="">
+                                            <img id="imgB" class="slide-img" alt="">`;
         document.body.appendChild(modal);
     
-        /* ——数据准备—— */
-        const galleryImgs=[...document.querySelectorAll('#gallery img')];
-        const sources=galleryImgs.map(i=>i.dataset?.src||i.src);
-        const cache=new Map();                              // 正确使用 Map
+        /* ——— 收集数据 ——— */
+        const srcList=[...document.querySelectorAll('#gallery img')].map(i=>i.dataset?.src||i.src);
+        const cache=new Map();
         const preload=i=>{
-                const src=sources[i%sources.length];
+                const src=srcList[i%srcList.length];
                 if(cache.has(src)) return;
-                const im=new Image();
-                im.src=src;
-                cache.set(src,im);                              // ★ 修复：使用 Map.set
+                const im=new Image(); im.src=src;
+                cache.set(src,im);
         };
     
-        /* ——引用 & 状态—— */
+        /* ——— DOM 引用 / 状态 ——— */
         const bgA=document.getElementById('bgA'), bgB=document.getElementById('bgB');
-        const imgA=document.getElementById('slideA'), imgB=document.getElementById('slideB');
+        const imA=document.getElementById('imgA'), imB=document.getElementById('imgB');
         let cur=0,useA=true,useBgA=true,timer;
     
-        /* ——工具函数—— */
-        const swap=(incoming,outgoing,src)=>{
-                outgoing.src=src; outgoing.classList.add('active');
-                incoming.classList.remove('active');
-        };
-        const swapBg=(incoming,outgoing,src)=>{
-                outgoing.style.backgroundImage=`url('${src}')`;
-                outgoing.classList.add('active');
-                incoming.classList.remove('active');
+        /* ——— 异步切换函数：确保 decode 完成后再淡入 ——— */
+        const crossfade = async nextIdx => {
+            const newSrc = srcList[nextIdx];
+            const newImg  = useA ? imB : imA;
+            const oldImg  = useA ? imA : imB;
+            const newBg   = useBgA ? bgB : bgA;
+            const oldBg   = useBgA ? bgA : bgB;
+    
+            // 设置 src & 预解码
+            newImg.src = newSrc;
+            await (cache.get(newSrc)?.decode?.() ?? Promise.resolve());
+    
+            // 背景同理
+            newBg.style.backgroundImage = `url('${newSrc}')`;
+    
+            // 交叉淡入淡出
+            newImg.classList.add('active'); oldImg.classList.remove('active');
+            newBg.classList.add('active');  oldBg.classList.remove('active');
+    
+            cur = nextIdx;
+            useA = !useA; useBgA = !useBgA;
+            preload(cur+1);                 // 继续预加载下一张
         };
     
-        /* ——显示指定索引—— */
-        const show=i=>{
-            const src=sources[i];
-            swap(useA?imgB:imgA,useA?imgA:imgB,src);
-            swapBg(useBgA?bgB:bgA,useBgA?bgA:bgB,src);
-            cur=i; useA=!useA; useBgA=!useBgA;
-            preload(cur+1);                                   // 继续预载下一张
-        };
-    
-        /* ——边播边载—— */
-        const tick=()=>{
-            const next=(cur+1)%sources.length;
-            const nextImg=cache.get(sources[next]);
-            if(nextImg && nextImg.complete){
-                    show(next);
+        /* ——— 播放器节奏 ——— */
+        const tick = async () => {
+            const next=(cur+1)%srcList.length;
+            const imgObj = cache.get(srcList[next]);
+            if(imgObj && imgObj.complete){
+                    await crossfade(next);
                     timer=setTimeout(tick,5000);
             }else{
-                    timer=setTimeout(tick,300);
+                    timer=setTimeout(tick,300); // 等待资源完成
             }
         };
     
-        /* ——打开 / 关闭模态—— */
-        const open=()=>{
-            if(!sources.length) return;
+        /* ——— 打开 / 关闭模态 ——— */
+        const open = () => {
+            if(!srcList.length) return;
             preload(0);
-            const first=cache.get(sources[0]);
-            const start=()=>{show(0);modal.classList.add('open');document.body.style.overflow='hidden';timer=setTimeout(tick,5000);};
-            first.complete ? start() : (first.onload=start);
+            const first = cache.get(srcList[0]);
+            const start = async () => {
+                await crossfade(0);
+                modal.classList.add('open');
+                document.body.style.overflow='hidden';
+                timer=setTimeout(tick,5000);
+            };
+            first.complete ? start() : first.decode().then(start);
         };
-        const close=()=>{modal.classList.remove('open');document.body.style.overflow='auto';clearTimeout(timer);};
+        const close = () => {
+            modal.classList.remove('open');
+            document.body.style.overflow='auto';
+            clearTimeout(timer);
+        };
     
+        /* ——— 事件绑定 ——— */
         btn.addEventListener('click',open);
         modal.addEventListener('click',close);
     })();
     </script>
-    <!-- ========== 放映模式 MOD END (fixed Map usage) ========== -->
+    <!-- ========== 放映模式 MOD END (async-decode fixed) ========== -->
     </body>
     </html>
     """
