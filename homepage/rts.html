@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>Real Time Subtitle</title>
+<style>
+:root{--accent:#4f46e5;--bg:#f8fafc;--text:#1e293b;--sidebar:250px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+/* 顶栏 */
+header{height:48px;background:#fff;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;padding:0 1rem;gap:.8rem;box-shadow:0 2px 4px rgba(0,0,0,.05)}
+header button{border:none;background:none;font-size:1.2rem;cursor:pointer}
+#chooseDir{padding:.25rem .9rem;border-radius:6px;background:var(--accent);color:#fff;font-size:.9rem}
+#status{flex:1;font-size:.85rem;opacity:.8}
+/* 主布局 */
+#mainWrap{flex:1;display:flex;overflow:hidden}
+#sidebar{width:var(--sidebar);background:#fff;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;transition:transform .3s ease}
+#sidebar.hide{transform:translateX(calc(-1*var(--sidebar)))}
+#sidebar h3{padding:1rem;border-bottom:1px solid #e2e8f0}
+#fileList{flex:1;overflow-y:auto}
+.item{padding:.7rem 1rem;border-bottom:1px solid #f1f5f9;white-space:nowrap;cursor:pointer}
+.item:hover{background:#f1f5f9}
+.item.active{background:var(--accent);color:#fff}
+.item span{display:inline-block;min-width:100%;animation:none}
+.item:hover span{animation:scroll 6s linear infinite}
+@keyframes scroll{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}
+button.accent{padding:.45rem 1rem;margin:1rem;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:.9rem;cursor:pointer}
+/* 内容区 */
+#content{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem}
+#poster{width:320px;height:480px;border-radius:14px;background:#cbd5e1 url('https://via.placeholder.com/320x480?text=Poster') center/cover no-repeat;box-shadow:0 6px 20px rgba(0,0,0,.08);cursor:pointer}
+#play{padding:.7rem 2.4rem;border:none;border-radius:10px;background:var(--accent);color:#fff;font-size:1rem;cursor:pointer;transition:background .2s}
+#play:hover{background:#4338ca}
+#hint{color:#64748b}
+/* 模态 */
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2rem;opacity:0;visibility:hidden;transition:opacity .3s}
+#modal.show{opacity:1;visibility:visible}
+#closeModal{position:absolute;top:1rem;right:1.4rem;border:none;background:none;font-size:2rem;color:#fff;cursor:pointer}
+#subDisplay{flex:1;display:flex;align-items:center;justify-content:center;width:90%;max-width:90%;text-align:center;font-size:clamp(1.3rem,4vw,3.2rem);line-height:1.4;color:#fff}
+#timelineWrap{width:90%;max-width:900px;display:flex;align-items:center;gap:.7rem;color:#fff;margin-bottom:4vh}
+#slider{flex:1;cursor:pointer}
+#timeSt{width:120px;text-align:right;font-variant-numeric:tabular-nums}
+#syncBtn{padding:.4rem .9rem;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:.8rem;cursor:pointer}
+</style>
+</head>
+<body>
+<header>
+  <button id="toggle">☰</button>
+  <button id="chooseDir">📂 选择目录</button>
+  <span id="status">未选择项目</span>
+</header>
+<div id="mainWrap">
+  <aside id="sidebar" class="hide">
+    <h3>字幕文件</h3>
+    <div id="fileList"></div>
+    <button id="importBtn" class="accent" disabled>导入字幕</button>
+  </aside>
+  <section id="content">
+    <div id="poster" title="点击更换海报"></div>
+    <button id="play" disabled>播放字幕</button>
+    <p id="hint">在左上选择项目目录 → 选择字幕 → 播放</p>
+  </section>
+</div>
+<input type="file" id="filePicker" style="display:none" />
+
+<!-- 模态 -->
+<div id="modal">
+  <button id="closeModal">✕</button>
+  <div id="subDisplay"></div>
+  <div id="timelineWrap">
+    <input type="range" id="slider" min="0" max="0" step="0.1" value="0" />
+    <span id="timeSt">00:00 / 00:00</span>
+    <button id="syncBtn">对齐字幕</button>
+  </div>
+</div>
+
+<script>
+/* DOM refs */
+const toggle=document.getElementById('toggle');
+const chooseDir=document.getElementById('chooseDir');
+const statusSpan=document.getElementById('status');
+const sidebar=document.getElementById('sidebar');
+const fileList=document.getElementById('fileList');
+const importBtn=document.getElementById('importBtn');
+const filePicker=document.getElementById('filePicker');
+const poster=document.getElementById('poster');
+const play=document.getElementById('play');
+const hint=document.getElementById('hint');
+const modal=document.getElementById('modal');
+const closeModal=document.getElementById('closeModal');
+const subDisplay=document.getElementById('subDisplay');
+const slider=document.getElementById('slider');
+const timeSt=document.getElementById('timeSt');
+const syncBtn=document.getElementById('syncBtn');
+
+/* state */
+let projectHandle=null, rememberedHandle=null, subsDir=null, postersDir=null;
+let storeHandle=async()=>{}, clearHandle=async()=>{};
+let currentSub=null, subtitles=[];window.subtitles = subtitles;
+let playing=false,startEpoch=0,offset=0,rafId,dragging=false;
+
+/* helpers */
+const fmt=s=>`${String(Math.floor(s/60)).padStart(2,'0')}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+const getDir=async name=>{try{return await projectHandle.getDirectoryHandle(name)}catch{return await projectHandle.getDirectoryHandle(name,{create:true})}};
+async function ensurePermission(handle,{mode='readwrite',request=false}={}){
+  if(!handle) return 'absent';
+  const hasQuery=typeof handle.queryPermission==='function';
+  const hasRequest=typeof handle.requestPermission==='function';
+  if(hasQuery){
+    let perm;
+    try{perm=await handle.queryPermission({mode});}
+    catch(err){console.warn('queryPermission 失败', err);return 'error';}
+    if(perm==='granted'||perm==='denied') return perm;
+    if(perm==='prompt'&&request&&hasRequest){
+      try{return await handle.requestPermission({mode});}
+      catch(err){console.warn('requestPermission 失败', err);return 'error';}
+    }
+    return perm||'unknown';
+  }
+  if(request&&hasRequest){
+    try{return await handle.requestPermission({mode});}
+    catch(err){console.warn('requestPermission 失败', err);return 'error';}
+  }
+  return 'unsupported';
+}
+
+/* toggle sidebar */
+toggle.onclick=()=>sidebar.classList.toggle('hide');
+
+async function activateProject(handle){
+  projectHandle=handle;
+  rememberedHandle=handle;
+  subsDir=await getDir('subtitles');
+  postersDir=await getDir('posters');
+  statusSpan.textContent=projectHandle.name;
+  importBtn.disabled=false;
+  hint.textContent='选择字幕 → 播放';
+  sidebar.classList.remove('hide');
+  if(typeof updateShift==='function') updateShift();
+  await loadSubs();
+}
+
+/* choose directory */
+chooseDir.onclick=async ev=>{
+  try{
+    const forcePicker=ev?.metaKey||ev?.altKey||ev?.shiftKey;
+    let handle=rememberedHandle;
+    const canReuse=!projectHandle&&!forcePicker&&handle;
+    if(canReuse){
+      const perm=await ensurePermission(handle,{mode:'readwrite',request:true});
+      if(perm==='granted'){
+        await activateProject(handle);
+        await storeHandle(handle);
+        return;
+      }
+      if(perm==='prompt'){
+        statusSpan.textContent=`等待授权：${handle.name}`;
+        hint.textContent='请在弹出的提示中点“允许”，如未弹出请再点击一次';
+        return;
+      }
+      if(perm==='denied'){
+        rememberedHandle=null;
+        await clearHandle();
+        statusSpan.textContent='未选择项目';
+        hint.textContent='在左上选择项目目录 → 选择字幕 → 播放';
+      }
+      if(perm==='absent'){
+        rememberedHandle=null;
+        await clearHandle();
+        statusSpan.textContent='未选择项目';
+        hint.textContent='在左上选择项目目录 → 选择字幕 → 播放';
+        handle=null;
+      }else{
+        console.warn('无法重用目录权限，尝试重新选择', perm);
+        rememberedHandle=null;
+        await clearHandle();
+        statusSpan.textContent='未选择项目';
+        hint.textContent='在左上选择项目目录 → 选择字幕 → 播放';
+        handle=null;
+      }
+    }
+    const picked=await window.showDirectoryPicker({mode:'readwrite'});
+    if(!picked) return;
+    rememberedHandle=picked;
+    await activateProject(picked);
+    await storeHandle(picked);
+  }catch(err){
+    if(err?.name==='AbortError') return;
+    console.error(err);
+  }
+};
+
+/* load subs */
+async function loadSubs(){
+  fileList.innerHTML='';currentSub=null;play.disabled=true;poster.style.background="url('https://via.placeholder.com/320x480?text=Poster') center/cover no-repeat";
+  for await(const [name,handle] of subsDir.entries()){
+    if(handle.kind==='file'&&/\.(srt|ass)$/i.test(name)) makeItem(name,handle);
+  }
+}
+function makeItem(name,handle){
+  const div=document.createElement('div');div.className='item';div.innerHTML=`<span>${name}</span>`;
+  div.onclick=()=>selectSub(div,handle);
+  fileList.appendChild(div);
+}
+function selectSub(el,handle){
+  document.querySelectorAll('.item').forEach(e=>e.classList.remove('active'));
+  el.classList.add('active');currentSub=handle;play.disabled=false;loadPoster(handle.name);
+}
+
+/* import subtitles */
+importBtn.onclick=()=>{
+  filePicker.accept='.srt,.ass';filePicker.multiple=true;
+  filePicker.onchange=async()=>{
+    for(const f of filePicker.files){const dest=await subsDir.getFileHandle(f.name,{create:true});const w=await dest.createWritable();await w.write(await f.arrayBuffer());await w.close()}
+    filePicker.value='';loadSubs();
+  };filePicker.click();
+};
+
+/* poster */
+poster.onclick=()=>{
+  if(!currentSub){alert('请先单击字幕文件');return}
+  filePicker.accept='image/*';filePicker.multiple=false;
+  filePicker.onchange=async()=>{
+    const img=filePicker.files[0];if(!img)return;const base=currentSub.name.replace(/\.[^.]+$/,'');const dest=await postersDir.getFileHandle(base+'.jpg',{create:true});const w=await dest.createWritable();await w.write(await img.arrayBuffer());await w.close();poster.style.background=`url('${URL.createObjectURL(img)}') center/cover no-repeat`;filePicker.value='';
+  };filePicker.click();
+};
+async function loadPoster(subName){
+  const base=subName.replace(/\.[^.]+$/,'');
+  try{const fh=await postersDir.getFileHandle(base+'.jpg');const f=await fh.getFile();poster.style.background=`url('${URL.createObjectURL(f)}') center/cover no-repeat`}
+  catch{poster.style.background="url('https://via.placeholder.com/320x480?text=Poster') center/cover no-repeat"}
+}
+
+/* play */
+play.onclick=async()=>{
+  if(!currentSub){alert('请先单击字幕文件');return}
+  const file=await currentSub.getFile();const txt=await file.text();subtitles=file.name.endsWith('.srt')?parseSRT(txt):parseASS(txt); window.subtitles = subtitles;
+  if(!subtitles.length){alert('无法解析字幕');return}
+  slider.max=subtitles[subtitles.length-1].end;slider.value=0;timeSt.textContent=`00:00 / ${fmt(slider.max)}`;
+  offset=0;startEpoch=performance.now();playing=true;modal.classList.add('show');loop();
+};
+closeModal.onclick=()=>{playing=false;cancelAnimationFrame(rafId);modal.classList.remove('show')};
+
+/* slider */
+slider.addEventListener('input',()=>{dragging=true;offset=parseFloat(slider.value);updateSubtitle(offset)});
+slider.addEventListener('change',()=>{startEpoch=performance.now();dragging=false});
+
+/* sync button: 跳到当前字幕开头 */
+syncBtn.onclick=()=>{
+  const t=parseFloat(slider.value);
+  const seg=subtitles.find(s=>t>=s.start&&t<=s.end);
+  if(seg){offset=seg.start;slider.value=offset;startEpoch=performance.now();updateSubtitle(offset)}
+};
+
+/* main loop */
+function loop(){if(!playing)return;const now=performance.now();let t=offset+(now-startEpoch)/1000;if(dragging){t=offset;startEpoch=performance.now()}if(t>slider.max){t=0;offset=0;startEpoch=performance.now()}updateSubtitle(t);rafId=requestAnimationFrame(loop)}
+function updateSubtitle(t){subDisplay.textContent=getLine(t);if(!dragging){slider.value=t}timeSt.textContent=`${fmt(t)} / ${fmt(slider.max)}`}
+function getLine(t){const s=subtitles.find(x=>t>=x.start&&t<=x.end);return s?s.text:''}
+
+/* parsers */
+function parseSRT(raw){const a=raw.split(/\r?\n/);const r=[];for(let i=0;i<a.length;){if(!a[i].trim()){i++;continue}i++;const line=a[i++]||'';if(!/-->/.test(line))continue;const[st,et]=line.split(/ --> /);let txt="";while(i<a.length&&a[i].trim())txt+=a[i++]+"\n";r.push({start:toSec(st),end:toSec(et),text:txt.trim()});i++}return r}
+function parseASS(raw){const r=[];raw.split(/\r?\n/).forEach(l=>{if(l.startsWith('Dialogue:')){const p=l.split(',');r.push({start:toSecAss(p[1]),end:toSecAss(p[2]),text:l.slice(l.indexOf(p[9]))})}});return r}
+function toSec(t){const [h,m,sec]=t.replace(',','.').split(':');return +h*3600+ +m*60+ +sec}
+function toSecAss(t){const [h,m,s]=t.split(':');return +h*3600+ +m*60+ +s}
+</script>
+  <!-- ===========  追加样式  =========== -->
+  <style>
+    /* 侧栏隐藏时，把内容区左移 sidebar 宽度以再次居中 */
+    #content.shift { margin-left: -250px; transition: margin .3s ease; }
+    
+    /* 搜索框与按钮外观（插入后即生效） */
+    #searchBtn {
+      border: none; background: transparent; cursor: pointer;
+      font-size: 1.1rem; margin-left: .5rem;
+    }
+    #searchInput {
+      display: none;           /* 默认收起 */
+      width: calc(100% - 2rem);
+      margin: .5rem 1rem; padding: .35rem .6rem;
+      border: 1px solid #d1d5db; border-radius: 6px;
+      font-size: .9rem;
+    }
+  </style>
+  <!-- ↓↓↓ 追加的样式：搜索框 & 无匹配提示 ↓↓↓ -->
+  <style>
+    #searchBox{
+      width:calc(100% - 2rem);
+      margin:.6rem 1rem .4rem;
+      padding:.35rem .6rem;
+      border:1px solid #d1d5db;
+      border-radius:6px;
+      font-size:.9rem;
+    }
+    .no-match{
+      padding:.7rem 1rem;
+      color:#64748b;
+      border-bottom:1px solid #f1f5f9;
+      cursor:pointer;
+    }
+    .no-match:hover{background:#f3f4f6}
+  </style>
+  <!-- --------- 追加样式 (粘贴在最后一个 </script> 之后) ---------- -->
+  <style>
+    /* 侧栏收起时让内容重新居中 */
+    #content.shift { margin-left: -250px; transition: margin .3s ease; }
+    /* 常驻搜索框 & 无匹配提示样式 */
+    #searchBox {
+      width: calc(100% - 2rem);
+      margin: .6rem 1rem .4rem;
+      padding: .35rem .6rem;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: .9rem;
+    }
+    .no-match {
+      padding: .7rem 1rem;
+      color: #64748b;
+      border-bottom: 1px solid #f1f5f9;
+      cursor: pointer;
+    }
+    .no-match:hover { background: #f3f4f6; }
+  </style>
+  
+  <!-- --------- 追加脚本 ---------- -->
+  <!-- --------- 追加样式 (粘贴在最后一个 </script> 之后) ---------- -->
+  <style>
+    /* 侧栏收起时让内容重新居中 */
+    #content.shift { margin-left: -250px; transition: margin .3s ease; }
+    /* 常驻搜索框 & 无匹配提示样式 */
+    #searchBox {
+      width: calc(100% - 2rem);
+      margin: .6rem 1rem .4rem;
+      padding: .35rem .6rem;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: .9rem;
+    }
+    .no-match {
+      padding: .7rem 1rem;
+      color: #64748b;
+      border-bottom: 1px solid #f1f5f9;
+      cursor: pointer;
+    }
+    .no-match:hover { background: #f3f4f6; }
+  </style>
+  <!-- =========== 追加样式：搜索框常显 & 无匹配项 =========== -->
+  <style>
+    /* 搜索输入框常驻侧栏顶端 */
+    #searchBox {
+      width: calc(100% - 2rem);
+      margin: .6rem 1rem .4rem;
+      padding: .35rem .6rem;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: .9rem;
+    }
+    /* OpenSubtitles 提示行 */
+    .no-match {
+      padding: .7rem 1rem;
+      color: #64748b;
+      border-bottom: 1px solid #f1f5f9;
+      cursor: pointer;
+    }
+    .no-match:hover { background: #f3f4f6; }
+    /* 侧栏收起时内容居中 */
+    #content.shift { margin-left: -250px; transition: margin .3s ease; }
+  </style>
+  
+  <!-- =========== 追加脚本：记忆目录 + 搜索框逻辑 + 内容居中 =========== -->
+  <script>
+    /* ---------- 1. 记忆上次目录 (IndexedDB) ---------- */
+    (async ()=> {
+      if(!window.indexedDB) return;
+      const dbReq = indexedDB.open('rtSubPlayer', 1);
+      dbReq.onupgradeneeded = e => e.target.result.createObjectStore('h');
+      dbReq.onerror = () => console.warn('IndexedDB 打开失败', dbReq.error);
+      dbReq.onsuccess = async e => {
+        const db = e.target.result;
+        storeHandle = async handle=>{
+          if(!handle) return;
+          try{
+            const tx=db.transaction('h','readwrite');
+            tx.objectStore('h').put(handle,'dir');
+          }catch(err){
+            console.warn('缓存目录失败', err);
+          }
+        };
+        clearHandle = async ()=>{
+          try{
+            const tx=db.transaction('h','readwrite');
+            tx.objectStore('h').delete('dir');
+          }catch(err){
+            console.warn('清除目录缓存失败', err);
+          }
+        };
+        if(projectHandle) storeHandle(projectHandle);
+        try{
+          const tx = db.transaction('h');
+          tx.onerror = () => console.warn('读取目录缓存失败', tx.error);
+          const get = tx.objectStore('h').get('dir');
+          get.onsuccess = async () => {
+            const saved = get.result;
+            if (!saved) return;
+            rememberedHandle = saved;
+            const perm = await ensurePermission(saved,{mode:'readwrite',request:false});
+            if(perm==='granted'){
+              await activateProject(saved);
+              await storeHandle(saved);
+            }else if(perm==='prompt'){
+              statusSpan.textContent=`已记住：${saved.name}`;
+              hint.textContent='点击“选择目录”重新授权或更换目录';
+            }else{
+              rememberedHandle=null;
+              await clearHandle();
+              statusSpan.textContent='未选择项目';
+              hint.textContent='在左上选择项目目录 → 选择字幕 → 播放';
+            }
+          };
+        }catch(err){
+          console.warn('读取缓存目录失败', err);
+        }
+      };
+    })();
+    
+    /* ---------- 2. 侧栏显 / 隐 时内容区重新居中 ---------- */
+    function updateShift(){
+      content.classList.toggle('shift', sidebar.classList.contains('hide'));
+    }
+    document.getElementById('toggle')
+    .addEventListener('click', ()=> setTimeout(updateShift,10));
+    new MutationObserver(updateShift)
+    .observe(sidebar,{attributes:true,attributeFilter:['class']});
+    
+    /* ---------- 3. 常驻搜索框 + 动态过滤 + 无匹配捷径 ---------- */
+    (function(){
+      const list   = document.getElementById('fileList');
+      let   search = document.getElementById('searchBox');
+      if(!search){          // 旧版本没有搜索框 → 创建
+        search = document.createElement('input');
+        search.id='searchBox';
+        search.placeholder='搜索字幕...';
+        list.parentElement.insertBefore(search, list);
+      }
+      
+      let noItem;           // “去 OpenSubtitles” 行
+      function showNo(q){
+        if(!noItem){
+          noItem=document.createElement('div');
+          noItem.className='no-match';
+          list.appendChild(noItem);
+        }
+        noItem.textContent=`在 OpenSubtitles 搜索 “${q}”`;
+        noItem.onclick=()=>window.open(
+          `https://www.opensubtitles.org/zh/search2/moviename-${encodeURIComponent(q)}/sublanguageid-chi`,
+          '_blank');
+        noItem.style.display='block';
+      }
+      function hideNo(){ if(noItem) noItem.style.display='none'; }
+        
+        function filter(q){
+          q=q.trim().toLowerCase();
+          let matched=false;
+          list.querySelectorAll('.item').forEach(it=>{
+            if(!it.dataset.name) it.dataset.name=it.textContent.trim().toLowerCase();
+            const hit=it.dataset.name.includes(q);
+            it.style.display = hit?'block':'none';
+            if (hit) matched=true;
+          });
+          if(q && !matched) showNo(q); else hideNo();
+        }
+        
+        search.addEventListener('input',e=>filter(e.target.value));
+        search.addEventListener('keydown',e=>{
+          if(e.key==='Escape'){ search.value=''; filter(''); }
+        });
+        filter('');           // 初次加载，显示全部
+      })();
+      </script>
+      <!-- === 追加样式：搜索框内部的“×”清空按钮 === -->
+      <!-- === 搜索框内嵌按钮定位补丁 === -->
+      <style>
+      /* 让包裹层自己带外边距，宽度与输入框一致 */
+      .search-wrap{
+        position:relative;
+        margin:.6rem 1rem .4rem;   /* 原来给 input 的 margin 挪到这 */
+      }
+      /* 输入框占 100% 宽，去掉自身 margin；右侧留 2rem 给按钮 */
+      .search-wrap #searchBox{
+        width:100%;
+        margin:0;
+        padding-right:2rem;
+      }
+      /* “×” 按钮距输入框右边 10px，看着更居中 */
+      #clearSearch{
+        position:absolute;
+        right:10px;
+        top:50%; transform:translateY(-50%);
+        border:none;               /* 取消边框 */
+        background:none;           /* 取消背景 */
+        -webkit-appearance:none;   /* Safari/Chrome 去除默认 UI */
+        appearance:none;   
+      }
+      </style>
+      
+      <!-- === 追加脚本：构建包裹层 + 按钮，并绑定清空逻辑 === -->
+      <script>
+      (function(){
+        const input = document.getElementById('searchBox');
+        if(!input) return;                         // 没有搜索框就退出
+        
+        /* 若已包装过则跳过 */
+        if(!input.parentElement.classList.contains('search-wrap')){
+          const wrap = document.createElement('div');
+          wrap.className = 'search-wrap';
+          input.parentElement.insertBefore(wrap, input);
+          wrap.appendChild(input);
+        }
+        
+        /* 若按钮已存在则不重复添加 */
+        if(document.getElementById('clearSearch')) return;
+        
+        const btn = document.createElement('button');
+        btn.id = 'clearSearch';
+        btn.textContent = '✕';
+        input.parentElement.appendChild(btn);
+        
+        /* 点击 × 清空输入并触发原过滤逻辑 */
+        btn.onclick = () => {
+          input.value = '';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        };
+      })();
+      </script>
+      <script>
+      (function () {
+        const hint   = document.getElementById('hint');
+        if (!hint) return;                // 没有提示元素直接跳过
+        
+        const READY_TEXT = '选择字幕 → 播放';
+        
+        /* ① 钩住 loadSubs —— 每当目录真正加载字幕时替换文案 */
+        if (typeof loadSubs === 'function' && !loadSubs.__patched) {
+          const orig = loadSubs;
+          loadSubs = async function (...args) {
+            hint.textContent = READY_TEXT;
+            return orig.apply(this, args);
+          };
+          loadSubs.__patched = true;      // 避免重复包裹
+        }
+        
+        /* ② 钩住 chooseDir —— 手动重新选择目录后也覆盖文案 */
+        if (chooseDir) {
+          const prevClick = chooseDir.onclick;
+          chooseDir.onclick = async ev => {
+            await prevClick?.call(chooseDir, ev);
+            if (projectHandle) hint.textContent = READY_TEXT;
+          };
+        }
+      })();
+      </script>
+      <script>
+      /* 选完目录后：尝试把站点数据持久化，避免被浏览器回收 */
+      chooseDir.addEventListener('click', async () => {
+        if (navigator.storage?.persist) {
+          const granted = await navigator.storage.persist();
+          console.log('持久化存储：', granted ? '成功' : '失败 / 已拒绝');
+        }
+      });
+      </script>
+      <!-- === 追加脚本：无匹配时再给出 SubHD 搜索选项 === -->
+      <script>
+      (function(){
+        const list   = document.getElementById('fileList');
+        const search = document.getElementById('searchBox');
+        if(!list || !search) return;
+        
+        /* 复用已存在的 .no-match 行 —— 新增第二行 for SubHD */
+        let noHD;   // SubHD 提示行
+        
+        function ensureHD(q){
+          if(!noHD){
+            noHD=document.createElement('div');
+            noHD.className='no-match';
+            list.appendChild(noHD);
+          }
+          noHD.textContent=`在 SubHD 搜索 “${q}”`;
+          noHD.onclick=()=>window.open(`https://subhd.tv/search/${encodeURIComponent(q)}`,'_blank');
+          noHD.style.display='block';
+        }
+        function hideHD(){ if(noHD) noHD.style.display='none'; }
+          
+          /* 监听 searchBox 的输入事件 —— 不改动原有 filter() */
+          search.addEventListener('input',()=>{
+            const q=search.value.trim().toLowerCase();
+            const anyVisible=[...list.querySelectorAll('.item')].some(el=>el.style.display!=='none');
+            if(q && !anyVisible){ ensureHD(q); } else hideHD();
+          });
+          
+          /* Escape 清空时也隐藏 SubHD 行 */
+          search.addEventListener('keydown',e=>{
+            if(e.key==='Escape') hideHD();
+          });
+        })();
+        </script>
+        <!-- === 让内容区展开/收起都带动画 + 启动时默认展开侧栏 === -->
+        <style>
+        /* 无论添加还是移除 .shift，都有 margin 过渡 */
+        #content{ transition: margin .3s ease; }
+        </style>
+        
+        <script>
+        /* 页面首次加载：如果 sidebar 带 hide 就去掉，并刷新位移 */
+        document.addEventListener('DOMContentLoaded',()=>{
+          if(sidebar.classList.contains('hide')){
+            sidebar.classList.remove('hide');   // 默认显示侧栏
+            updateShift();                      // 调整 #content 位置
+          }
+        });
+        </script>
+        <!-- === 深色模式补丁（自动跟随系统） === -->
+        <style>
+        /* 系统处于 dark mode 时覆盖颜色变量 */
+        @media (prefers-color-scheme: dark){
+          :root{
+            /* 1. 背景改为 #252525 */
+            --bg:#252525;
+            
+            /* 2. 文字反转为浅色 */
+            --text:#f8fafc;
+
+          }
+          
+          /* 顶栏 / 侧栏改深色，边线适当加深 */
+          header,
+          #sidebar{
+            background:#1e1e1e;
+            border-color:#333;
+          }
+          
+          /* 列表行 hover / 选中配合深色 */
+          .item:hover{background:#2d2d2d}
+          .item.active{background:var(--accent);color:#000}
+          
+          /* 模态遮罩仍保持 rgba 黑，但下方字幕文字已用 --text */
+          #modal{background:rgba(0,0,0,.9)}
+          
+          /* 默认海报占位底色调暗一些 */
+          #poster{background-color:#404040}
+        }
+        </style>
+        <script>
+        /* ========= 自动选择第一条字幕（双保险） ========= */
+        (function () {
+          const list = document.getElementById('fileList');
+          if (!list) return;
+          
+          /* 点击列表中首个“可见”的 .item */
+          function clickFirst() {
+            const first = list.querySelector('.item:not([style*="display: none"])');
+            if (first) first.click();
+          }
+          
+          /* ---- A. 包装 loadSubs() ---- */
+          if (typeof loadSubs === 'function' && !loadSubs.__patched) {
+            const orig = loadSubs;
+            loadSubs = async function (...args) {
+              await orig.apply(this, args);
+              /* 等 DOM 更新完成再尝试点击 */
+              setTimeout(clickFirst, 0);
+            };
+            loadSubs.__patched = true;
+          }
+          
+          /* ---- B. 监听列表变动（防抖 50ms） ---- */
+          let timer = null;
+          new MutationObserver(() => {
+            clearTimeout(timer);
+            timer = setTimeout(clickFirst, 50);
+          }).observe(list, { childList: true, subtree: false });
+        })();
+        </script>
+        <script>
+        /* ===== 把 02:03 → 00:02:03 的补丁 ===== */
+        (function () {
+          /* 新格式化函数：hh:mm:ss */
+          const hms = sec => {
+            const h = Math.floor(sec / 3600);
+            const m = Math.floor(sec % 3600 / 60);
+            const s = Math.floor(sec % 60);
+            return (
+              String(h).padStart(2, '0') + ':' +
+              String(m).padStart(2, '0') + ':' +
+              String(s).padStart(2, '0')
+            );
+          };
+          
+          /* ---------- 1. 包装 updateSubtitle ---------- */
+          if (typeof updateSubtitle === 'function' && !updateSubtitle.__hms) {
+            const orig = updateSubtitle;
+            updateSubtitle = function (t) {
+              orig(t);  // 先执行原逻辑（仍写 mm:ss）
+              /* 再把 timeSt 改成 hh:mm:ss */
+              timeSt.textContent = `${hms(t)} / ${hms(parseFloat(slider.max))}`;
+            };
+            updateSubtitle.__hms = true;
+          }
+          
+          /* ---------- 2. 包装 play.onclick（初始化时长行） ---------- */
+          if (play && !play.__hmsPatched) {
+            const origPlay = play.onclick;
+            play.onclick = async ev => {
+              await origPlay?.call(play, ev);
+              /* 播放器启动后，重写 00:00 行为三段式 */
+              timeSt.textContent = `00:00:00 / ${hms(parseFloat(slider.max))}`;
+            };
+            play.__hmsPatched = true;
+          }
+        })();
+        </script>
+        <style>
+        /* ⬇ 新增：时间标签样式 + 动画保持 */
+        .time-lbl{
+          min-width:72px;                /* 三段数字宽度一致 */
+          text-align:center;
+          font-variant-numeric:tabular-nums;
+          color:#fff;
+        }
+        #curTime{margin-right:.7rem;}    /* 左边时间离 slider 0.7rem */
+        #totTime{margin-left:.7rem;}     /* 右边时间离按钮 0.7rem */
+        
+        /* 让 #content 移动时带过渡（如果之前已写可忽略） */
+        #content{transition:margin .3s ease;}
+        </style>
+        <script>
+        (function(){
+          /* 目标容器 */
+          const wrap = document.getElementById('timelineWrap');
+          if(!wrap) return;                // 容错
+          
+          const slider = document.getElementById('slider');
+          const timeSt = document.getElementById('timeSt');  // 旧元素
+          
+          /* -------- a. 首次运行：插入左右标签，并隐藏旧 timeSt -------- */
+          if(!document.getElementById('curTime')){
+            const cur = document.createElement('span');
+            cur.id = 'curTime';   cur.className = 'time-lbl'; cur.textContent = '00:00:00';
+            
+            const tot = document.createElement('span');
+            tot.id = 'totTime';   tot.className = 'time-lbl'; tot.textContent = '00:00:00';
+            
+            wrap.insertBefore(cur, slider);   // 放在 slider 左边
+            wrap.insertBefore(tot, timeSt);   // 放在旧 span 前
+            timeSt.style.display = 'none';    // 彻底隐藏旧合并文本
+          }
+          
+          const curTime = document.getElementById('curTime');
+          const totTime = document.getElementById('totTime');
+          
+          /* -------- b. hh:mm:ss 格式化函数 -------- */
+          const hms = s=>{
+            const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=Math.floor(s%60);
+            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+          };
+          
+          /* -------- c. 包装 updateSubtitle(t)：实时刷新左右显示 -------- */
+          if(typeof updateSubtitle==='function' && !updateSubtitle.__split){
+            const orig = updateSubtitle;
+            updateSubtitle = function(t){
+              orig(t);                          // 保留原行为
+              curTime.textContent = hms(t);     // 左：当前
+              totTime.textContent = hms(+slider.max); // 右：总时长
+            };
+            updateSubtitle.__split = true;
+          }
+          
+          /* -------- d. 包装 play.onclick：刚进模态时先写一次 -------- */
+          if(typeof play!=='undefined' && !play.__splitInit){
+            const old = play.onclick;
+            play.onclick = async ev=>{
+              await old?.call(play, ev);         // 让原播放逻辑先跑
+              curTime.textContent = '00:00:00';
+              totTime.textContent = hms(+slider.max);
+            };
+            play.__splitInit = true;
+          }
+        })();
+        </script>
+        <style>
+        /* 放大镜按钮字体和激活状态 */
+        #zoomBtn{
+          border:none;background:none;cursor:pointer;
+          font-size:1.3rem;color:#fff;transition:transform .2s;
+        }
+        #zoomBtn.active{color:var(--accent);transform:scale(1.2);}
+        </style>
+        <script>
+        (function(){
+          const wrap = document.getElementById('timelineWrap');
+          if(!wrap) return;                 // 没有时间轴容器直接跳过
+          
+          /* 若不存在则创建放大镜按钮 */
+          if(!document.getElementById('zoomBtn')){
+            const btn = document.createElement('button');
+            btn.id = 'zoomBtn';
+            btn.innerHTML = '🔍';
+            wrap.insertBefore(btn, wrap.firstChild);   // 放在时间轴最左侧
+            
+            const sub  = document.getElementById('subDisplay');
+            const small = 'clamp(1.3rem,4vw,3.2rem)'; // 原字号
+            const large = '8vw';     // 放大字号
+            let zoom = false;
+            
+            btn.onclick = () => {
+              zoom = !zoom;
+              sub.style.fontSize = zoom ? large : small;
+              btn.classList.toggle('active', zoom);
+            };
+          }
+        })();
+        </script>
+        <!-- === 背景高斯模糊（只在模态显示时开启） === -->
+        <style>
+        /* 默认无滤镜，避免性能负担 */
+        #modal { backdrop-filter:none; }
+        
+        /* 打开模态后启用 12px 模糊，让后景柔化 */
+        #modal.show { backdrop-filter:blur(12px); }
+        </style>
+        <!-- ========== 补丁：模态 ⏮ ⏯ ⏭ 按钮功能 ========== -->
+        <style>
+        #subCtrlBox{
+          display:flex;justify-content:center;align-items:center;
+          gap:2.2rem;margin-top:-1.1rem;
+        }
+        .ctrlBtn{
+          border:none;background:none;cursor:pointer;
+          font-size:2.3rem;line-height:1;color:#fff;transition:transform .18s;
+        }
+        .ctrlBtn:hover{transform:scale(1.15)}
+        </style>
+        <script>
+        (() => {
+          // 防止重复插入
+          if (window.__rtSubCtrlX) return;
+          window.__rtSubCtrlX = true;
+          
+          const modal  = document.getElementById('modal');
+          const slider = document.getElementById('slider');
+          
+          // 每次模态打开都自动插入按钮，并绑定功能
+          new MutationObserver(() => {
+            if (!modal.classList.contains('show')) return;
+            
+            const wrap = document.getElementById('timelineWrap');
+            // 若已经有按钮区或关键变量缺失则退出
+            if (!wrap || !slider || document.getElementById('subCtrlBox')) return;
+            
+            // 插入按钮区
+            wrap.insertAdjacentHTML('beforebegin', `
+      <div id="subCtrlBox">
+        <button id="btnPrev" class="ctrlBtn">⏮</button>
+        <button id="btnPP"   class="ctrlBtn">⏸</button>
+        <button id="btnNext" class="ctrlBtn">⏭</button>
+      </div>`);
+            
+            // 元素引用
+            const $ = id => document.getElementById(id);
+            const prev = $('btnPrev'), next = $('btnNext'), pp = $('btnPP');
+            
+            // 字幕数据直接用 subtitles（你的代码里始终用 subtitles 作为全局）
+            function idxAt(t) {
+              return Array.isArray(window.subtitles)
+              ? window.subtitles.findIndex(s => t >= s.start && t <= s.end)
+              : -1;
+            }
+            function nearestIdx(t, dir) {
+              const arr = window.subtitles || [];
+              let lo=0, hi=arr.length-1, mid, last=-1;
+              while(lo<=hi){
+                mid=(lo+hi)>>1;
+                if(arr[mid].start<=t){last=mid;lo=mid+1;}else hi=mid-1;
+              }
+              return dir==='prev'
+              ? (last>-1?last:0)
+              : (last<arr.length-1?last+1:arr.length-1);
+            }
+            function jump(i, keepPause=false) {
+              const arr = window.subtitles || [];
+              if(i<0||i>=arr.length) return;
+              offset = arr[i].start;
+              slider.value = offset;
+              updateSubtitle(offset);
+              startEpoch = performance.now();
+              if(!keepPause && !window.playing && typeof window.loop === 'function') {
+                window.playing = true; window.loop();
+                pp.textContent = '⏸';
+              }
+            }
+            function pause() {
+              window.playing = false;
+              if (typeof rafId !== 'undefined') cancelAnimationFrame(rafId);
+              pp.textContent = '▶';
+            }
+            function resume() {
+              window.playing = true;
+              if (typeof window.loop === 'function') window.loop();
+              pp.textContent = '⏸';
+            }
+            
+            // 绑定事件
+            prev.onclick = () => {
+              const t=+slider.value, cur=idxAt(t);
+              const arr=window.subtitles||[];
+              if(!arr.length) return;
+              jump(cur>0?cur-1:nearestIdx(t,'prev'), true);
+            };
+            next.onclick = () => {
+              const t=+slider.value, cur=idxAt(t);
+              const arr=window.subtitles||[];
+              if(!arr.length) return;
+              jump(cur!==-1&&cur<arr.length-1?cur+1:nearestIdx(t,'next'), true);
+            };
+            pp.onclick = () => {
+              const t=+slider.value, cur=idxAt(t);
+              if(cur!==-1) jump(cur, true);
+              window.playing ? pause() : resume();
+            };
+          }).observe(modal,{attributes:true,attributeFilter:['class']});
+        })();
+        </script>
+</body>
+</html>
