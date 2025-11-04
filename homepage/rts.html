@@ -94,100 +94,28 @@ const timeSt=document.getElementById('timeSt');
 const syncBtn=document.getElementById('syncBtn');
 
 /* state */
-let projectHandle=null, rememberedHandle=null, subsDir=null, postersDir=null;
-let storeHandle=async()=>{}, clearHandle=async()=>{};
+let projectHandle=null, subsDir=null, postersDir=null;
 let currentSub=null, subtitles=[];window.subtitles = subtitles;
 let playing=false,startEpoch=0,offset=0,rafId,dragging=false;
 
 /* helpers */
 const fmt=s=>`${String(Math.floor(s/60)).padStart(2,'0')}:${String(Math.floor(s%60)).padStart(2,'0')}`;
 const getDir=async name=>{try{return await projectHandle.getDirectoryHandle(name)}catch{return await projectHandle.getDirectoryHandle(name,{create:true})}};
-async function ensurePermission(handle,{mode='readwrite',request=false}={}){
-  if(!handle) return 'absent';
-  const hasQuery=typeof handle.queryPermission==='function';
-  const hasRequest=typeof handle.requestPermission==='function';
-  if(hasQuery){
-    let perm;
-    try{perm=await handle.queryPermission({mode});}
-    catch(err){console.warn('queryPermission 失败', err);return 'error';}
-    if(perm==='granted'||perm==='denied') return perm;
-    if(perm==='prompt'&&request&&hasRequest){
-      try{return await handle.requestPermission({mode});}
-      catch(err){console.warn('requestPermission 失败', err);return 'error';}
-    }
-    return perm||'unknown';
-  }
-  if(request&&hasRequest){
-    try{return await handle.requestPermission({mode});}
-    catch(err){console.warn('requestPermission 失败', err);return 'error';}
-  }
-  return 'unsupported';
-}
 
 /* toggle sidebar */
 toggle.onclick=()=>sidebar.classList.toggle('hide');
 
-async function activateProject(handle){
-  projectHandle=handle;
-  rememberedHandle=handle;
-  subsDir=await getDir('subtitles');
-  postersDir=await getDir('posters');
-  statusSpan.textContent=projectHandle.name;
-  importBtn.disabled=false;
-  hint.textContent='选择字幕 → 播放';
-  sidebar.classList.remove('hide');
-  if(typeof updateShift==='function') updateShift();
-  await loadSubs();
-}
-
 /* choose directory */
-chooseDir.onclick=async ev=>{
+chooseDir.onclick=async()=>{
   try{
-    const forcePicker=ev?.metaKey||ev?.altKey||ev?.shiftKey;
-    let handle=rememberedHandle;
-    const canReuse=!projectHandle&&!forcePicker&&handle;
-    if(canReuse){
-      const perm=await ensurePermission(handle,{mode:'readwrite',request:true});
-      if(perm==='granted'){
-        await activateProject(handle);
-        await storeHandle(handle);
-        return;
-      }
-      if(perm==='prompt'){
-        statusSpan.textContent=`等待授权：${handle.name}`;
-        hint.textContent='请在弹出的提示中点“允许”，如未弹出请再点击一次';
-        return;
-      }
-      if(perm==='denied'){
-        rememberedHandle=null;
-        await clearHandle();
-        statusSpan.textContent='未选择项目';
-        hint.textContent='在左上选择项目目录 → 选择字幕 → 播放';
-      }
-      if(perm==='absent'){
-        rememberedHandle=null;
-        await clearHandle();
-        statusSpan.textContent='未选择项目';
-        hint.textContent='在左上选择项目目录 → 选择字幕 → 播放';
-        handle=null;
-      }else{
-        console.warn('无法重用目录权限，尝试重新选择', perm);
-        rememberedHandle=null;
-        await clearHandle();
-        statusSpan.textContent='未选择项目';
-        hint.textContent='在左上选择项目目录 → 选择字幕 → 播放';
-        handle=null;
-      }
-    }
-    const picked=await window.showDirectoryPicker({mode:'readwrite'});
-    if(!picked) return;
-    rememberedHandle=picked;
-    await activateProject(picked);
-    await storeHandle(picked);
-  }catch(err){
-    if(err?.name==='AbortError') return;
-    console.error(err);
-  }
+    projectHandle=await window.showDirectoryPicker({mode:'readwrite'});
+    subsDir=await getDir('subtitles');
+    postersDir=await getDir('posters');
+    statusSpan.textContent=projectHandle.name;
+    importBtn.disabled=false;hint.textContent='选择字幕 → 播放';
+    sidebar.classList.remove('hide');
+    await loadSubs();
+  }catch(err){console.error(err)}
 };
 
 /* load subs */
@@ -369,55 +297,36 @@ function toSecAss(t){const [h,m,s]=t.split(':');return +h*3600+ +m*60+ +s}
   <script>
     /* ---------- 1. 记忆上次目录 (IndexedDB) ---------- */
     (async ()=> {
-      if(!window.indexedDB) return;
       const dbReq = indexedDB.open('rtSubPlayer', 1);
       dbReq.onupgradeneeded = e => e.target.result.createObjectStore('h');
-      dbReq.onerror = () => console.warn('IndexedDB 打开失败', dbReq.error);
       dbReq.onsuccess = async e => {
         const db = e.target.result;
-        storeHandle = async handle=>{
-          if(!handle) return;
-          try{
+        const get = db.transaction('h').objectStore('h').get('dir');
+        get.onsuccess = async () => {
+          const saved = get.result;
+          if (!saved) return;
+          const granted = await saved.queryPermission({mode:'readwrite'})==='granted'
+          || await saved.requestPermission({mode:'readwrite'})==='granted';
+          if (!granted) return;
+          projectHandle = saved;
+          subsDir   = await getDir('subtitles');
+          postersDir= await getDir('posters');
+          statusSpan.textContent = projectHandle.name;
+          importBtn.disabled = false;
+          sidebar.classList.remove('hide');
+          updateShift();           // 侧栏状态导致内容偏移
+          loadSubs();              // 原函数，刷新列表
+        };
+        
+        /* 保存 handle：挂钩原 chooseDir 成功后 */
+        const prev = chooseDir.onclick;
+        chooseDir.onclick = async ev => {
+          await prev?.call(chooseDir, ev);
+          if (projectHandle) {
             const tx=db.transaction('h','readwrite');
-            tx.objectStore('h').put(handle,'dir');
-          }catch(err){
-            console.warn('缓存目录失败', err);
+            tx.objectStore('h').put(projectHandle,'dir');
           }
         };
-        clearHandle = async ()=>{
-          try{
-            const tx=db.transaction('h','readwrite');
-            tx.objectStore('h').delete('dir');
-          }catch(err){
-            console.warn('清除目录缓存失败', err);
-          }
-        };
-        if(projectHandle) storeHandle(projectHandle);
-        try{
-          const tx = db.transaction('h');
-          tx.onerror = () => console.warn('读取目录缓存失败', tx.error);
-          const get = tx.objectStore('h').get('dir');
-          get.onsuccess = async () => {
-            const saved = get.result;
-            if (!saved) return;
-            rememberedHandle = saved;
-            const perm = await ensurePermission(saved,{mode:'readwrite',request:false});
-            if(perm==='granted'){
-              await activateProject(saved);
-              await storeHandle(saved);
-            }else if(perm==='prompt'){
-              statusSpan.textContent=`已记住：${saved.name}`;
-              hint.textContent='点击“选择目录”重新授权或更换目录';
-            }else{
-              rememberedHandle=null;
-              await clearHandle();
-              statusSpan.textContent='未选择项目';
-              hint.textContent='在左上选择项目目录 → 选择字幕 → 播放';
-            }
-          };
-        }catch(err){
-          console.warn('读取缓存目录失败', err);
-        }
       };
     })();
     
