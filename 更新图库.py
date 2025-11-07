@@ -4,6 +4,7 @@ import subprocess
 import webbrowser
 from PIL import Image
 import re
+import socket
 
 def compress_image(input_path, output_path, target_size=(1800, 1200), quality=70):
     with Image.open(input_path) as img:
@@ -71,6 +72,27 @@ def update_gallery(project_path):
 
     print(f"HTML updated in {html_path}")
 
+
+def get_lan_ip():
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+
+
+def print_preview_urls(port, path=""):
+    local_url = f"http://localhost:{port}{path}"
+    lan_ip = get_lan_ip()
+    lan_url = f"http://{lan_ip}:{port}{path}"
+    print("本地服务器已启动，预览地址：")
+    print(f"  - 本机: {local_url}")
+    if lan_ip.startswith("127."):
+        print("  - 局域网: 无法检测到有效的局域网 IP")
+    else:
+        print(f"  - 局域网: {lan_url}")
+
 if __name__ == "__main__":
     # 自动打开与脚本同目录下的 project 文件夹
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -123,7 +145,7 @@ if __name__ == "__main__":
     
     # 步骤 2：启动 HTTP 服务器
     server_process = subprocess.Popen([sys.executable, "-m", "http.server", port], cwd=script_dir)
-    print(f"HTTP 服务器已启动，访问地址：http://localhost:{port}")
+    print_preview_urls(port)
     
     # 步骤 3：打开浏览器
     webbrowser.open(f"http://localhost:{port}")
