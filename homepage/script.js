@@ -10,27 +10,49 @@ function toggleSidebar() {
 }
 
 function changeContent(section) {
-    fetch(`${section}.html`)
-        .then(response => response.text())
+    const cacheBuster = Date.now();
+    const url = `${section}.html?ts=${cacheBuster}`;
+    
+    fetch(url, { cache: "no-store" })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`加载 ${section}.html 失败（${response.status}）`);
+            }
+            return response.text();
+        })
         .then(data => {
-            // 解析获取的 HTML
             const parser = new DOMParser();
             const doc = parser.parseFromString(data, 'text/html');
+            const content = document.getElementById('content');
+            let newSection = doc.querySelector('section');
             
-            // 获取 <section> 内容
-            const newSection = doc.querySelector('section');
-            
+            content.innerHTML = '';
             if (newSection) {
-                // 替换 main 元素的内容
-                const content = document.getElementById('content');
-                content.innerHTML = '';
                 content.appendChild(newSection);
-                
-                // 重新初始化事件监听器
-                initContent();
             } else {
-                console.error('未在获取的内容中找到 <section>');
+                content.innerHTML = data;
+                newSection = content.querySelector('section');
             }
+            
+            if (!newSection) {
+                content.innerHTML = `
+                    <section class="section-error">
+                        <h2>内容加载失败</h2>
+                        <p>未在 ${section}.html 中找到 &lt;section&gt; 元素。</p>
+                    </section>`;
+                return;
+            }
+            
+            initContent();
+        })
+        .catch(error => {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <section class="section-error">
+                    <h2>内容加载失败</h2>
+                    <p>${error.message}</p>
+                </section>`;
+            console.error(error);
         });
     // 隐藏 sidebar 并移动 toggle
     const sidebar = document.querySelector('nav.sidebar');
