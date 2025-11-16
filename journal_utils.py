@@ -19,6 +19,8 @@ CODE_FENCE_PATTERN = re.compile(r'^```')
 SUMMARY_EXCLUDE_PREFIXES = ("banner::", "icon::")
 LOGSEQ_META_PATTERN = re.compile(r'^\s*logseq\.[^:]+::', re.IGNORECASE)
 COLLAPSE_PATTERN = re.compile(r'^\s*collapsed::\s*true\s*$', re.IGNORECASE)
+CAPTION_DECOR_PATTERN = re.compile(r'\[\[#caption\]\]==.*?==', re.IGNORECASE)
+CAPTION_LINE_PATTERN = re.compile(r'^\s*!\[[^\]]*\]\([^)]+\)\s*\[\[#caption\]\]==.*?==\s*$', re.IGNORECASE)
 MAX_SUMMARY_LENGTH = 220
 META_FILENAME = "journal_meta.json"
 
@@ -463,6 +465,9 @@ def _extract_summary(text: str) -> str:
             continue
         if LOGSEQ_META_PATTERN.match(line) or COLLAPSE_PATTERN.match(line):
             continue
+        if CAPTION_LINE_PATTERN.match(line):
+            flush_current()
+            continue
         if line.startswith("![[") or line.startswith("!["):
             continue
         if line.startswith(("-", "*", "+")):
@@ -491,6 +496,7 @@ def _clean_summary_text(raw: str) -> str:
         return ""
     text = re.sub(r'\[\[([^\]|]+)(?:\|([^\]]+))?\]\]', r'\1', raw)
     text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+    text = CAPTION_DECOR_PATTERN.sub("", text)
     text = re.sub(r"[#*_>`~]", "", text)
     text = re.sub(r"\s+", " ", text).strip()
     if not text:
@@ -688,6 +694,21 @@ def _write_entry_html(ctx: JournalBuildResult) -> None:
             border: 1px solid var(--border);
             margin: 1em 0;
         }}
+        .markdown-body figure.md-figure {{
+            margin: 2.5em auto;
+            text-align: center;
+        }}
+        .markdown-body figure.md-figure img {{
+            width: 100%;
+            height: auto;
+            border-radius: 18px;
+            border: 1px solid var(--border);
+        }}
+        .markdown-body figure.md-figure figcaption {{
+            margin-top: 0.8em;
+            font-size: 0.95em;
+            color: var(--muted);
+        }}
         @media (max-width: 640px) {{
             .entry-header,
             .hero,
@@ -743,16 +764,35 @@ def _write_entry_html(ctx: JournalBuildResult) -> None:
             }}
             return fileName ? `./assets/${{fileName}}` : cleaned;
         }};
+        const escapeHtmlAttr = (value = "") => value
+            .replace(/&/g, "&amp;")
+            .replace(/"/g, "&quot;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        const escapeHtml = (value = "") => value
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
         const stripMetaLines = (md) => md
             .split(/\\r?\\n/)
             .filter(line => !/^\\s*(?:banner|icon)::/i.test(line))
             .filter(line => !/^\\s*logseq\\.[^:]+::/i.test(line))
             .filter(line => !/^\\s*collapsed::\\s*true\\s*$/i.test(line))
             .join("\\n");
+        const applyCaptionBlocks = (md) => {{
+            const pattern = /!\\[([^\\]]*)\\]\\(([^)]+)\\)\\s*\\[\\[#caption\\]\\]==([\\s\\S]*?)==/gi;
+            return md.replace(pattern, (_, alt, src, caption) => {{
+                const resolved = remapSrc(src);
+                const safeAlt = escapeHtmlAttr(alt);
+                const safeCaption = escapeHtml(caption.trim());
+                return `<figure class="md-figure"><img src="${{resolved}}" alt="${{safeAlt}}" loading="lazy" decoding="async"><figcaption>${{safeCaption}}</figcaption></figure>`;
+            }});
+        }};
         const normalizeMarkdown = (md) => {{
+            const withCaptions = applyCaptionBlocks(md);
             const standard = /!\\[([^\\]]*)\\]\\(([^)]+)\\)/g;
             const embeds = /!\\[\\[([^\\]]+)\\]\\]/g;
-            const step1 = md.replace(standard, (_, alt, src) => `![${{alt}}](${{remapSrc(src)}})`);
+            const step1 = withCaptions.replace(standard, (_, alt, src) => `![${{alt}}](${{remapSrc(src)}})`);
             return step1.replace(embeds, (_, src) => `![${{src}}](${{remapSrc(src)}})`);
         }};
         async function renderMarkdown() {{
