@@ -158,6 +158,31 @@
             border: 1px solid var(--border);
             margin: 1em 0;
         }
+        .markdown-body figure.md-figure {
+            margin: 2.5em auto;
+            text-align: center;
+        }
+        .markdown-body figure.md-figure img {
+            width: 100%;
+            height: auto;
+            border-radius: 18px;
+            border: 1px solid var(--border);
+        }
+        .markdown-body figure.md-figure figcaption {
+            margin-top: 0.8em;
+            font-size: 0.95em;
+            color: var(--muted);
+        }
+        .markdown-body ul {
+            margin: 0 0 1.2em;
+            padding-left: 1.5em;
+        }
+        .markdown-body .flat-entry {
+            margin: 0 0 1.2em;
+        }
+        .markdown-body .flat-entry:last-child {
+            margin-bottom: 0;
+        }
         @media (max-width: 640px) {
             .entry-header,
             .hero,
@@ -187,7 +212,7 @@
                 <span class="icon-badge">🛠️</span>
                 <h1>AppleScript与Shortcut实践</h1>
             </div>
-            <p class="meta">最后更新：2025-11-08 16:50:16</p>
+            <p class="meta">最后更新：2025-11-17 10:47:32</p>
         </header>
         <section class="hero">
             <img src="./assets/image_1718227246155_0.png" alt="AppleScript与Shortcut实践 hero" loading="lazy" decoding="async">
@@ -216,15 +241,56 @@
             }
             return fileName ? `./assets/${fileName}` : cleaned;
         };
+        const escapeHtmlAttr = (value = "") => value
+            .replace(/&/g, "&amp;")
+            .replace(/"/g, "&quot;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        const escapeHtml = (value = "") => value
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
         const stripMetaLines = (md) => md
             .split(/\r?\n/)
             .filter(line => !/^\s*(?:banner|icon)::/i.test(line))
+            .filter(line => !/^\s*logseq\.[^:]+::/i.test(line))
+            .filter(line => !/^\s*collapsed::\s*true\s*$/i.test(line))
             .join("\n");
+        const applyCaptionBlocks = (md) => {
+            const pattern = /!\[([^\]]*)\]\(([^)]+)\)\s*\[\[#caption\]\]==([\s\S]*?)==/gi;
+            return md.replace(pattern, (_, alt, src, caption) => {
+                const resolved = remapSrc(src);
+                const safeAlt = escapeHtmlAttr(alt);
+                const safeCaption = escapeHtml(caption.trim());
+                return `<figure class="md-figure"><img src="${resolved}" alt="${safeAlt}" loading="lazy" decoding="async"><figcaption>${safeCaption}</figcaption></figure>`;
+            });
+        };
         const normalizeMarkdown = (md) => {
+            const withCaptions = applyCaptionBlocks(md);
             const standard = /!\[([^\]]*)\]\(([^)]+)\)/g;
             const embeds = /!\[\[([^\]]+)\]\]/g;
-            const step1 = md.replace(standard, (_, alt, src) => `![${alt}](${remapSrc(src)})`);
+            const step1 = withCaptions.replace(standard, (_, alt, src) => `![${alt}](${remapSrc(src)})`);
             return step1.replace(embeds, (_, src) => `![${src}](${remapSrc(src)})`);
+        };
+        const flattenTopLevelLists = (container) => {
+            const topLists = Array.from(container.children || []).filter(
+                node => node.tagName === "UL"
+            );
+            topLists.forEach(list => {
+                const fragment = document.createDocumentFragment();
+                Array.from(list.children || []).forEach(li => {
+                    if (!(li instanceof HTMLElement)) {
+                        return;
+                    }
+                    const wrapper = document.createElement("div");
+                    wrapper.className = "flat-entry";
+                    while (li.firstChild) {
+                        wrapper.appendChild(li.firstChild);
+                    }
+                    fragment.appendChild(wrapper);
+                });
+                list.replaceWith(fragment);
+            });
         };
         async function renderMarkdown() {
             try {
@@ -234,6 +300,7 @@
                 const htmlContent = marked.parse(normalizeMarkdown(cleaned));
                 const container = document.getElementById("journal-body");
                 container.innerHTML = htmlContent;
+                flattenTopLevelLists(container);
                 container.querySelectorAll("img").forEach(img => {
                     img.loading = "lazy";
                     img.decoding = "async";

@@ -709,6 +709,16 @@ def _write_entry_html(ctx: JournalBuildResult) -> None:
             font-size: 0.95em;
             color: var(--muted);
         }}
+        .markdown-body ul {{
+            margin: 0 0 1.2em;
+            padding-left: 1.5em;
+        }}
+        .markdown-body .flat-entry {{
+            margin: 0 0 1.2em;
+        }}
+        .markdown-body .flat-entry:last-child {{
+            margin-bottom: 0;
+        }}
         @media (max-width: 640px) {{
             .entry-header,
             .hero,
@@ -795,6 +805,26 @@ def _write_entry_html(ctx: JournalBuildResult) -> None:
             const step1 = withCaptions.replace(standard, (_, alt, src) => `![${{alt}}](${{remapSrc(src)}})`);
             return step1.replace(embeds, (_, src) => `![${{src}}](${{remapSrc(src)}})`);
         }};
+        const flattenTopLevelLists = (container) => {{
+            const topLists = Array.from(container.children || []).filter(
+                node => node.tagName === "UL"
+            );
+            topLists.forEach(list => {{
+                const fragment = document.createDocumentFragment();
+                Array.from(list.children || []).forEach(li => {{
+                    if (!(li instanceof HTMLElement)) {{
+                        return;
+                    }}
+                    const wrapper = document.createElement("div");
+                    wrapper.className = "flat-entry";
+                    while (li.firstChild) {{
+                        wrapper.appendChild(li.firstChild);
+                    }}
+                    fragment.appendChild(wrapper);
+                }});
+                list.replaceWith(fragment);
+            }});
+        }};
         async function renderMarkdown() {{
             try {{
                 const res = await fetch(`./${{MD_FILE}}?t=${{Date.now()}}`);
@@ -803,6 +833,7 @@ def _write_entry_html(ctx: JournalBuildResult) -> None:
                 const htmlContent = marked.parse(normalizeMarkdown(cleaned));
                 const container = document.getElementById("journal-body");
                 container.innerHTML = htmlContent;
+                flattenTopLevelLists(container);
                 container.querySelectorAll("img").forEach(img => {{
                     img.loading = "lazy";
                     img.decoding = "async";
