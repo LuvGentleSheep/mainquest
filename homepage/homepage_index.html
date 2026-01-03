@@ -52,21 +52,36 @@
         <img class="lazy" data-src="./background/BG3.jpeg" alt="背景图片3">
     </div>
     <header class="banner">
-        <h1>Kelvin's Daily Photography</h1>
+        <div class="banner-content">
+            <h1>Kelvin's Daily Photography</h1>
+        </div>
+        <button class="toggle-sidebar" onclick="toggleSidebar()" aria-label="切换菜单">
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+        </button>
+        <nav class="sidebar">
+            <ul>
+                <li><a href="#" class="sidebar-link" onclick="changeContent('recent-updates'); return false;">最近更新</a></li>
+                <li><a href="#" class="sidebar-link" onclick="changeContent('journal'); return false;">日志</a></li>
+                <li><a href="#" class="sidebar-link" onclick="changeContent('gallery'); return false;">画廊</a></li>
+                <li><a href="#" class="sidebar-link" onclick="changeContent('about'); return false;">关于</a></li>
+            </ul>
+        </nav>
     </header>
-    <button class="toggle-sidebar" onclick="toggleSidebar()">☰</button>
-    <nav class="sidebar">
-        <ul>
-            <li><a href="#" class="sidebar-link" onclick="changeContent('recent-updates'); return false;">最近更新 🎉</a></li>
-            <li><a href="#" class="sidebar-link" onclick="changeContent('journal'); return false;">日志 🎉</a></li>
-            <li><a href="#" class="sidebar-link" onclick="changeContent('gallery'); return false;">画廊 🎉</a></li>
-            <li><a href="#" class="sidebar-link" onclick="changeContent('about'); return false;">关于 🛠️</a></li>
-        </ul>
-    </nav>
     <div class="content-wrapper hidden-scrollbar">
         <main class="content" id="content">
         </main>
     </div>
+    <!-- 底部导航栏 - 移动端 -->
+    <nav class="bottom-nav">
+        <ul>
+            <li><a href="#" class="bottom-nav-link" onclick="changeContent('recent-updates'); return false;" data-section="recent-updates">最近更新</a></li>
+            <li><a href="#" class="bottom-nav-link" onclick="changeContent('journal'); return false;" data-section="journal">日志</a></li>
+            <li><a href="#" class="bottom-nav-link" onclick="changeContent('gallery'); return false;" data-section="gallery">画廊</a></li>
+            <li><a href="#" class="bottom-nav-link" onclick="changeContent('about'); return false;" data-section="about">关于</a></li>
+        </ul>
+    </nav>
     <div class="modal" id="modal">
         <div class="modal-content" id="modal-content">
             <p id="modal-text"></p>
