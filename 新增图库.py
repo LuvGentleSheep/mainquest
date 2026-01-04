@@ -576,6 +576,8 @@ def create_index_html(project_name):
         print("临时文件已删除。")
         
 def update_homepage_and_gallery(project_name, title, content, image_name):
+    safe_image_name = image_name.replace("\\ ", " ")
+    safe_image_name = safe_image_name.replace(" ", "%20")
     # 获取本地时间并格式化
     local_tz = datetime.now().astimezone().tzinfo
     current_time = datetime.now().astimezone().strftime(f"%Y-%m-%d %H:%M:%S")
@@ -585,7 +587,7 @@ def update_homepage_and_gallery(project_name, title, content, image_name):
     <div class="update-item">
         <div class="update-image">
             <a href="../project/{project_name}/{project_name}_index.html">
-                <img class="lazy" data-src="../project/{project_name}/public/background/{image_name}" alt="更新图片">
+                <img class="lazy" data-src="../project/{project_name}/public/background/{safe_image_name}" loading="lazy" src="../project/{project_name}/public/background/{safe_image_name}" alt="更新图片">
                 <div class="image-title"></div>
             </a>
         </div>
@@ -601,8 +603,13 @@ def update_homepage_and_gallery(project_name, title, content, image_name):
     
     # 生成 gallery.html 更新内容
     gallery_update = f"""
-    <div class="gallery-item clickable" data-link="../project/{project_name}/{project_name}_index.html" data-src="../project/{project_name}/public/background/{image_name}">
-        <h3>{title}</h3>
+    <div class="gallery-item clickable" data-link="../project/{project_name}/{project_name}_index.html" data-src="../project/{project_name}/public/background/{safe_image_name}">
+        <div class="update-image">
+            <img class="lazy" data-src="../project/{project_name}/public/background/{safe_image_name}" loading="lazy" src="../project/{project_name}/public/background/{safe_image_name}" alt="{title}">
+        </div>
+        <div class="update-content">
+            <div class="update-title">{title}</div>
+        </div>
         <p>{content}</p>
     </div>
     """

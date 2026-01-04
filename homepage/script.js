@@ -308,8 +308,11 @@ function initContent() {
                 let element = entry.target;
                 
                 if (element.tagName === 'IMG') {
-                    element.src = element.dataset.src;
                     element.onload = () => {
+                        element.classList.add('loaded');
+                    };
+                    element.src = element.dataset.src;
+                    if (element.complete) {
                         element.classList.add('loaded');
                     }
                 }
@@ -394,8 +397,11 @@ document.addEventListener("DOMContentLoaded", function() {
                 let element = entry.target;
                 
                 if (element.tagName === 'IMG') {
-                    element.src = element.dataset.src;
                     element.onload = () => {
+                        element.classList.add('loaded');
+                    };
+                    element.src = element.dataset.src;
+                    if (element.complete) {
                         element.classList.add('loaded');
                     }
                 }
