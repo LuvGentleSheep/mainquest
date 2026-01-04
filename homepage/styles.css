@@ -489,6 +489,10 @@ main.content h2::after {
     transform: scale(1.1);
 }
 
+.gallery-item:hover .update-image img {
+    transform: scale(1.1);
+}
+
 .update-image::after {
     content: '';
     position: absolute;
@@ -586,70 +590,35 @@ main.content h2::after {
 
 .gallery-row {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
     gap: 24px;
     padding: 0;
+    justify-content: center;
 }
 
 .gallery-item {
     position: relative;
-    aspect-ratio: 3 / 2;
+    display: flex;
+    flex-direction: column;
+    background: var(--update-card-bg);
+    border: 1px solid var(--glass-border);
     border-radius: 20px;
     overflow: hidden;
-    background-size: cover;
-    background-position: center;
-    border: none;
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: var(--shadow-sm);
     cursor: pointer;
     opacity: 0;
     transform: translateY(20px);
+    height: auto;
+    min-height: 0;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
 }
 
 .gallery-item:hover {
-    transform: translateY(-8px) scale(1.02);
+    transform: translateY(-8px);
     box-shadow: var(--shadow-lg);
-}
-
-.gallery-item::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.7));
-    opacity: 0.8;
-    transition: opacity 0.3s ease;
-}
-
-.gallery-item:hover::before {
-    opacity: 0.6;
-}
-
-.gallery-item h3 {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    margin: 20px;
-    padding: 14px 18px;
-    background: var(--gallery-overlay);
-    color: var(--text-color);
-    border-radius: 12px;
-    font-size: 16px;
-    font-weight: 600;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    transition: all 0.3s ease;
-    letter-spacing: -0.3px;
-}
-
-.gallery-item:hover h3 {
-    background: var(--gallery-hover);
-    color: var(--gallery-hover-text);
-    transform: translateY(-4px);
+    border-color: rgba(255, 255, 255, 0.2);
 }
 
 .gallery-item p {
@@ -1033,5 +1002,8 @@ main.content h2::after {
 @media (max-width: 768px) {
     .bottom-nav {
         display: flex;
+        background: rgba(20, 20, 20, 0.7);
+        backdrop-filter: blur(24px) saturate(180%);
+        -webkit-backdrop-filter: blur(24px) saturate(180%);
     }
 }

@@ -201,8 +201,8 @@ function initContent() {
         });
     });
     
-    // 处理 gallery-item h3 点击事件
-    document.querySelectorAll('.gallery-item h3').forEach(item => {
+    // 处理 gallery-item 标题点击事件
+    document.querySelectorAll('.gallery-item .update-title').forEach(item => {
         item.addEventListener('click', function(event) {
             event.preventDefault(); // 阻止默认事件
             event.stopPropagation(); // 阻止事件冒泡
@@ -300,7 +300,7 @@ function initContent() {
     });
     
     // 重新初始化懒加载
-    const lazyElements = document.querySelectorAll('.lazy, .gallery-item');
+    const lazyElements = document.querySelectorAll('.lazy');
     
     const lazyLoad = function(entries, observer) {
         entries.forEach(entry => {
@@ -312,9 +312,6 @@ function initContent() {
                     element.onload = () => {
                         element.classList.add('loaded');
                     }
-                } else if (element.classList.contains('gallery-item')) {
-                    element.style.backgroundImage = `url(${element.dataset.src})`;
-                    element.classList.add('loaded');
                 }
                 
                 observer.unobserve(element);
@@ -389,7 +386,7 @@ document.addEventListener("DOMContentLoaded", function() {
     updateBottomNavActive('recent-updates');
 
     // 懒加载
-    const lazyElements = document.querySelectorAll('.lazy, .gallery-item');
+    const lazyElements = document.querySelectorAll('.lazy');
     
     const lazyLoad = function(entries, observer) {
         entries.forEach(entry => {
@@ -401,9 +398,6 @@ document.addEventListener("DOMContentLoaded", function() {
                     element.onload = () => {
                         element.classList.add('loaded');
                     }
-                } else if (element.classList.contains('gallery-item')) {
-                    element.style.backgroundImage = `url(${element.dataset.src})`;
-                    element.classList.add('loaded');
                 }
                 
                 observer.unobserve(element);
