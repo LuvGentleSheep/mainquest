@@ -254,7 +254,7 @@ function initContent() {
                     // 使用 sessionStorage 持久化，以便从子页面返回时恢复
                     sessionStorage.setItem(`scroll_${currentSection}`, contentWrapper.scrollTop.toString());
                 }
-                window.location.href = link;
+                window.open(link, '_blank', 'noopener');
             } else {
                 // 如果没有 data-link 属性，则不进行重定向
                 event.preventDefault();

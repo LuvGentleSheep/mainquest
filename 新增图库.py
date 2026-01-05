@@ -586,7 +586,7 @@ def update_homepage_and_gallery(project_name, title, content, image_name):
     homepage_update = f"""
     <div class="update-item">
         <div class="update-image">
-            <a href="../project/{project_name}/{project_name}_index.html">
+            <a href="../project/{project_name}/{project_name}_index.html" target="_blank" rel="noopener">
                 <img class="lazy" data-src="../project/{project_name}/public/background/{safe_image_name}" loading="lazy" src="../project/{project_name}/public/background/{safe_image_name}" alt="更新图片">
                 <div class="image-title"></div>
             </a>

@@ -537,7 +537,7 @@ main.content h2::after {
 }
 
 .update-title {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 600;
     color: var(--text-color);
     margin: 0;
@@ -620,6 +620,7 @@ main.content h2::after {
     box-shadow: var(--shadow-lg);
     border-color: rgba(255, 255, 255, 0.2);
 }
+
 
 .gallery-item p {
     display: none;
