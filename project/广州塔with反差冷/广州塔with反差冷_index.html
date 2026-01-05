@@ -42,18 +42,43 @@
                 .background-slideshow img.active {
                         opacity: 1; /* 将当前显示的图片的透明度设置为1，使其可见 */
                 }
-                
-                header {
+                header.banner {
                         position: -webkit-sticky;
                         position: sticky;
                         top: 0;
-                        background-color: rgba(0, 0, 0, 0.7); /* 半透明黑色背景 */
-                        color: #fff; /* 白色字体 */
-                        padding: 1rem;
-                        text-align: center;
+                        height: 70px;
+                        background: rgba(15, 15, 15, 0.8);
+                        backdrop-filter: blur(20px) saturate(180%);
+                        -webkit-backdrop-filter: blur(20px) saturate(180%);
+                        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
                         z-index: 1000; /* 确保header在最上层 */
-                        -webkit-backdrop-filter: blur(10px); /* 高斯模糊效果 */
-                        backdrop-filter: blur(10px);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 0 32px;
+                        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+                }
+
+                header.banner h1 {
+                        font-size: 22px;
+                        font-weight: 700;
+                        margin: 0;
+                        background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.8) 100%);
+                        -webkit-background-clip: text;
+                        -webkit-text-fill-color: transparent;
+                        background-clip: text;
+                        letter-spacing: -0.5px;
+                }
+
+                header.banner h1 {
+                        font-size: 22px;
+                        font-weight: 700;
+                        margin: 0;
+                        background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.8) 100%);
+                        -webkit-background-clip: text;
+                        -webkit-text-fill-color: transparent;
+                        background-clip: text;
+                        letter-spacing: -0.5px;
                 }
                 
                 .gallery {
@@ -235,7 +260,7 @@
   <img class="lazy" data-src="./public/background/DSC01093.jpeg" alt="背景图片9">
   <img class="lazy" data-src="./public/background/DSC01098.jpeg" alt="背景图片10">
 </div>
-<header>
+<header class="banner">
     <h1>广州塔with反差冷</h1>
 </header>
 <div class="gallery" id="gallery">

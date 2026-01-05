@@ -63,7 +63,7 @@ def generate_texts(project_name):
     for i, img in enumerate(background_images):
         output2 += f'  <img class="lazy" data-src="./public/background/{img}" alt="背景图片{i+1}">\n'
     output2 += '</div>'
-    output3 = f'<header>\n    <h1>{project_name}</h1>\n</header>\n<div class="gallery" id="gallery">\n'
+    output3 = f'<header class="banner">\n    <h1>{project_name}</h1>\n</header>\n<div class="gallery" id="gallery">\n'
 
     # 保存输出到文本文件
     with open(os.path.join('project', project_name, 'output1.txt'), 'w', encoding='utf-8') as f:
@@ -120,17 +120,32 @@ def create_index_html(project_name):
                         opacity: 1; /* 将当前显示的图片的透明度设置为1，使其可见 */
                 }
                 
-                header {
+                header.banner {
                         position: -webkit-sticky;
                         position: sticky;
                         top: 0;
-                        background-color: rgba(0, 0, 0, 0.7); /* 半透明黑色背景 */
-                        color: #fff; /* 白色字体 */
-                        padding: 1rem;
-                        text-align: center;
+                        height: 70px;
+                        background: rgba(15, 15, 15, 0.8);
+                        backdrop-filter: blur(20px) saturate(180%);
+                        -webkit-backdrop-filter: blur(20px) saturate(180%);
+                        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
                         z-index: 1000; /* 确保header在最上层 */
-                        -webkit-backdrop-filter: blur(10px); /* 高斯模糊效果 */
-                        backdrop-filter: blur(10px);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 0 32px;
+                        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+                }
+
+                header.banner h1 {
+                        font-size: 22px;
+                        font-weight: 700;
+                        margin: 0;
+                        background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.8) 100%);
+                        -webkit-background-clip: text;
+                        -webkit-text-fill-color: transparent;
+                        background-clip: text;
+                        letter-spacing: -0.5px;
                 }
                 
                 .gallery {
