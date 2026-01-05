@@ -190,6 +190,19 @@ function changeContent(section, isInitialLoad = false) {
 function initContent() {
     // 初始化动态内容的事件监听器
 
+    // 画廊图片统一新标签页打开
+    document.querySelectorAll('.gallery-item .update-image').forEach(image => {
+        image.addEventListener('click', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            const galleryItem = this.closest('.gallery-item');
+            const link = galleryItem ? galleryItem.getAttribute('data-link') : null;
+            if (link) {
+                window.open(link, '_blank', 'noopener');
+            }
+        });
+    });
+
     // 处理 update-main 点击事件
     document.querySelectorAll('.update-main').forEach(item => {
         item.addEventListener('click', function(event) {

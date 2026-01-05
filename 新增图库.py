@@ -604,9 +604,11 @@ def update_homepage_and_gallery(project_name, title, content, image_name):
     # 生成 gallery.html 更新内容
     gallery_update = f"""
     <div class="gallery-item clickable" data-link="../project/{project_name}/{project_name}_index.html" data-src="../project/{project_name}/public/background/{safe_image_name}">
-        <div class="update-image">
-            <img class="lazy" data-src="../project/{project_name}/public/background/{safe_image_name}" loading="lazy" src="../project/{project_name}/public/background/{safe_image_name}" alt="{title}">
-        </div>
+        <a href="../project/{project_name}/{project_name}_index.html" target="_blank" rel="noopener">
+            <div class="update-image">
+                <img class="lazy" data-src="../project/{project_name}/public/background/{safe_image_name}" loading="lazy" src="../project/{project_name}/public/background/{safe_image_name}" alt="{title}">
+            </div>
+        </a>
         <div class="update-content">
             <div class="update-title">{title}</div>
         </div>
