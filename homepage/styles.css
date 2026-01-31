@@ -179,6 +179,13 @@ nav.sidebar {
     margin-left: auto;
 }
 
+/* 移动端完全隐藏桌面端导航栏 */
+@media (max-width: 768px) {
+    nav.sidebar {
+        display: none !important;
+    }
+}
+
 nav.sidebar ul {
     list-style: none;
     padding: 0;
@@ -271,73 +278,6 @@ nav.sidebar ul li a:hover::before {
     transform: translateY(-6px) rotate(-45deg);
 }
 
-/* 移动端侧边栏 */
-@media (max-width: 768px) {
-    nav.sidebar {
-        position: fixed;
-        top: 70px;
-        left: 20px;
-        right: 20px;
-        background: rgba(20, 20, 20, 0.95);
-        backdrop-filter: blur(40px) saturate(200%);
-        -webkit-backdrop-filter: blur(40px) saturate(200%);
-        border: 1px solid var(--glass-border);
-        border-radius: 20px;
-        flex-direction: column;
-        align-items: stretch;
-        padding: 20px;
-        margin-top: 12px;
-        transform: translateY(-120%);
-        opacity: 0;
-        pointer-events: none;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: var(--shadow-lg);
-    }
-    
-    nav.sidebar::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
-        border-radius: 20px;
-        pointer-events: none;
-        z-index: -1;
-    }
-
-    nav.sidebar:not(.hidden) {
-        transform: translateY(0);
-        opacity: 1;
-        pointer-events: all;
-    }
-
-    nav.sidebar ul {
-        flex-direction: column;
-        gap: 8px;
-    }
-
-    nav.sidebar ul li a {
-        padding: 14px 20px;
-        border-radius: 12px;
-        background: var(--glass-bg);
-        border: 1px solid var(--glass-border);
-    }
-
-    nav.sidebar ul li a:hover {
-        background: var(--glass-hover);
-        border-color: rgba(255, 255, 255, 0.2);
-    }
-
-    nav.sidebar ul li a::before {
-        display: none;
-    }
-
-    .toggle-sidebar {
-        display: flex;
-    }
-}
 
 /* ============================================
    内容区域
@@ -442,11 +382,12 @@ main.content h2::after {
 
 .update-container {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    grid-template-columns: repeat(3, 1fr);
     gap: 24px;
     justify-content: center;
 }
 
+/* 三列时的最小卡片宽度计算：在1024px断点处 (1024-64-48)/3 = 304px */
 .update-item {
     display: flex;
     flex-direction: column;
@@ -462,6 +403,7 @@ main.content h2::after {
     min-height: 400px;
     opacity: 0;
     transform: translateY(20px);
+    max-width: none; /* 三列时无限制 */
 }
 
 .update-item:hover {
@@ -590,7 +532,7 @@ main.content h2::after {
 
 .gallery-row {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    grid-template-columns: repeat(3, 1fr);
     gap: 24px;
     padding: 0;
     justify-content: center;
@@ -819,13 +761,24 @@ main.content h2::after {
 
 @media (max-width: 1024px) {
     .update-container {
-        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-        gap: 20px;
+        grid-template-columns: repeat(2, 304px);
+        gap: 24px;
+        justify-content: center;
     }
 
     .gallery-row {
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 20px;
+        grid-template-columns: repeat(2, 304px);
+        gap: 24px;
+        justify-content: center;
+    }
+    
+    /* 两列时的卡片宽度固定为 304px，间距保持 24px，整体居中显示 */
+    .update-item {
+        max-width: 304px;
+    }
+    
+    .gallery-item {
+        max-width: 304px;
     }
 }
 
@@ -867,11 +820,14 @@ main.content h2::after {
 
     .update-container {
         grid-template-columns: 1fr;
-        gap: 16px;
+        gap: 24px;
     }
 
     .update-item {
         min-height: auto;
+        /* 单列时的最大卡片宽度 ≤ 两列时的最小宽度 (304px) */
+        max-width: 304px;
+        justify-self: center;
     }
 
     .update-image {
@@ -880,7 +836,13 @@ main.content h2::after {
 
     .gallery-row {
         grid-template-columns: 1fr;
-        gap: 16px;
+        gap: 24px;
+    }
+    
+    .gallery-item {
+        /* 单列时的最大卡片宽度 ≤ 两列时的最小宽度 (304px) */
+        max-width: 304px;
+        justify-self: center;
     }
 
     /* 移动端隐藏图片上方的标题 */
