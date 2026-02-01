@@ -35,15 +35,6 @@
     window.addEventListener('load', () => {
         fireConfetti();
     });
-    
-    document.addEventListener('DOMContentLoaded', () => {
-        const updateLink = document.querySelector('a.sidebar-link[onclick*="recent-updates"]');
-        if (updateLink) {
-            updateLink.addEventListener('click', () => {
-                fireConfetti();
-            });
-        }
-    });
 </script>
 <body>
     <div class="background-slideshow" id="background-slideshow">
@@ -53,7 +44,7 @@
     </div>
     <header class="banner">
         <div class="banner-content">
-            <h1>Kelvin's Daily Photography</h1>
+            <h1 onclick="fireConfetti(); changeContent('recent-updates'); return false;">Kelvin's Daily Photography</h1>
         </div>
         <button class="toggle-sidebar" onclick="toggleSidebar()" aria-label="切换菜单">
             <span class="hamburger-line"></span>
