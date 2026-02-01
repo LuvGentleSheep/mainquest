@@ -119,6 +119,11 @@ a {
     opacity: 0;
     transition: opacity 2s ease-in-out;
     filter: brightness(0.3) blur(1px);
+    user-select: none;
+    -webkit-user-drag: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    pointer-events: none;
 }
 
 .background-slideshow img.active {
@@ -387,7 +392,6 @@ main.content h2::after {
     justify-content: center;
 }
 
-/* 三列时的最小卡片宽度计算：在1024px断点处 (1024-64-48)/3 = 304px */
 .update-item {
     display: flex;
     flex-direction: column;
@@ -403,7 +407,6 @@ main.content h2::after {
     min-height: 400px;
     opacity: 0;
     transform: translateY(20px);
-    max-width: none; /* 三列时无限制 */
 }
 
 .update-item:hover {
@@ -761,24 +764,13 @@ main.content h2::after {
 
 @media (max-width: 1024px) {
     .update-container {
-        grid-template-columns: repeat(2, 304px);
+        grid-template-columns: repeat(2, 1fr);
         gap: 24px;
-        justify-content: center;
     }
 
     .gallery-row {
-        grid-template-columns: repeat(2, 304px);
+        grid-template-columns: repeat(2, 1fr);
         gap: 24px;
-        justify-content: center;
-    }
-    
-    /* 两列时的卡片宽度固定为 304px，间距保持 24px，整体居中显示 */
-    .update-item {
-        max-width: 304px;
-    }
-    
-    .gallery-item {
-        max-width: 304px;
     }
 }
 
@@ -825,24 +817,11 @@ main.content h2::after {
 
     .update-item {
         min-height: auto;
-        /* 单列时的最大卡片宽度 ≤ 两列时的最小宽度 (304px) */
-        max-width: 304px;
-        justify-self: center;
-    }
-
-    .update-image {
-        /* 移动端保持 4:3 比例，与画廊一致 */
     }
 
     .gallery-row {
         grid-template-columns: 1fr;
         gap: 24px;
-    }
-    
-    .gallery-item {
-        /* 单列时的最大卡片宽度 ≤ 两列时的最小宽度 (304px) */
-        max-width: 304px;
-        justify-self: center;
     }
 
     /* 移动端隐藏图片上方的标题 */
