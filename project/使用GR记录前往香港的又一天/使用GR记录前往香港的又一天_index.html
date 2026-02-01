@@ -330,11 +330,24 @@
     
             startSlideshow();
     
-            // 模态视图功能
+            // 模态视图功能 - 使用与放映模式相同的加载逻辑
             const modal = document.getElementById("myModal");
             const span = document.getElementsByClassName("close")[0];
             let currentImageIndex = 0;
             let galleryImages = document.querySelectorAll('.gallery img');
+            
+            // 收集所有图片源（优先使用 data-src，如果没有则使用 src）- 与放映模式相同
+            const srcList = [...galleryImages].map(img => img.dataset?.src || img.src);
+            const cache = new Map();
+            
+            // 预加载函数 - 与放映模式相同
+            const preload = (i) => {
+                const src = srcList[i % srcList.length];
+                if (cache.has(src)) return;
+                const im = new Image();
+                im.src = src;
+                cache.set(src, im);
+            };
     
             galleryImages.forEach((img, index) => {
                     img.onclick = function() {
@@ -342,32 +355,82 @@
                     };
             });
     
-        function showModal(img, index) {
+        async function showModal(img, index) {
             currentImageIndex = index;
             const modalImg = document.getElementById("img01");
             const downloadLink = document.getElementById("downloadLink");
-            const highResSrc = img.src.replace('/background/', '/gallery/');
+            
+            // 获取图片源（优先使用 data-src）
+            const currentSrc = img.dataset?.src || img.src;
+            
+            // 预加载当前图片
+            preload(index);
+            const imgObj = cache.get(currentSrc);
+            
+            // 等待图片加载完成（如果已加载则立即显示，否则等待）
+            if (imgObj && imgObj.complete) {
+                modalImg.src = currentSrc;
+            } else if (imgObj) {
+                await new Promise((resolve) => {
+                    imgObj.onload = resolve;
+                    imgObj.onerror = resolve; // 即使加载失败也继续
+                });
+                modalImg.src = currentSrc;
+            } else {
+                modalImg.src = currentSrc;
+            }
+            
+            const highResSrc = currentSrc.replace('/background/', '/gallery/');
             modal.style.display = "flex";
-            modalImg.src = img.src;
             downloadLink.href = highResSrc;
+            
+            // 预加载前后各5张图片
+            for (let i = index - 5; i <= index + 5; i++) {
+                if (i >= 0 && i < srcList.length) {
+                    preload(i);
+                }
+            }
         }
         
-        function updateModalImage() {
+        async function updateModalImage() {
             const modalImg = document.getElementById("img01");
             const downloadLink = document.getElementById("downloadLink");
-            const currentImg = galleryImages[currentImageIndex];
-            const highResSrc = currentImg.src.replace('/background/', '/gallery/');
-            modalImg.src = currentImg.src;
+            const currentSrc = srcList[currentImageIndex];
+            
+            // 预加载当前图片
+            preload(currentImageIndex);
+            const imgObj = cache.get(currentSrc);
+            
+            // 等待图片加载完成
+            if (imgObj && imgObj.complete) {
+                modalImg.src = currentSrc;
+            } else if (imgObj) {
+                await new Promise((resolve) => {
+                    imgObj.onload = resolve;
+                    imgObj.onerror = resolve;
+                });
+                modalImg.src = currentSrc;
+            } else {
+                modalImg.src = currentSrc;
+            }
+            
+            const highResSrc = currentSrc.replace('/background/', '/gallery/');
             downloadLink.href = highResSrc;
+            
+            // 预加载前后各3张图片（按需加载）
+            for (let i = currentImageIndex - 3; i <= currentImageIndex + 3; i++) {
+                const idx = (i + srcList.length) % srcList.length;
+                preload(idx);
+            }
         }
-            document.querySelector('.prev').onclick = () => {
-                    currentImageIndex = (currentImageIndex - 1 + galleryImages.length) % galleryImages.length;
-                    updateModalImage();
+            document.querySelector('.prev').onclick = async () => {
+                    currentImageIndex = (currentImageIndex - 1 + srcList.length) % srcList.length;
+                    await updateModalImage();
             };
     
-            document.querySelector('.next').onclick = () => {
-                    currentImageIndex = (currentImageIndex + 1) % galleryImages.length;
-                    updateModalImage();
+            document.querySelector('.next').onclick = async () => {
+                    currentImageIndex = (currentImageIndex + 1) % srcList.length;
+                    await updateModalImage();
             };
     
             span.onclick = function() {
