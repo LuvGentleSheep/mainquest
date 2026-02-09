@@ -111,8 +111,8 @@
             display: block;
         }
 
-        /* === 预览层分离：全屏背景层 + 相机层 === */
-        #bg-layer {
+        /* === 预览层分离：双背景层（覆盖过渡）+ 相机层 === */
+        #bg-layer, #bg-layer-next {
             position: fixed;
             inset: 0;
             z-index: 0;
@@ -120,24 +120,16 @@
             background-position: center;
             background-repeat: no-repeat;
             background-size: cover;
-            /* 滑入动画：默认在屏幕下方，通过 JS 切换 class 触发 */
             transform: translateY(100%);
-            opacity: 1;
-            transition: transform 0.7s cubic-bezier(0.33, 1, 0.68, 1),
-                        opacity 0.7s ease,
-                        background-color 0.7s ease;
+            transition: transform 0.7s cubic-bezier(0.33, 1, 0.68, 1);
         }
 
-        #bg-layer.bg-visible {
-            transform: translateY(0);
+        .bg-visible {
+            transform: translateY(0) !important;
         }
 
-        #bg-layer.bg-fading {
-            opacity: 0;
-        }
-
-        #bg-layer.bg-no-transition {
-            transition: none;
+        .bg-no-transition {
+            transition: none !important;
         }
 
         #camera-layer {
@@ -157,6 +149,12 @@
             width: auto;
             height: auto;
             filter: drop-shadow(0 4px 24px rgba(0, 0, 0, 0.45));
+            transition: max-width 0.5s ease, max-height 0.5s ease;
+        }
+
+        #camera-layer.with-bg canvas {
+            max-width: 55vw;
+            max-height: 55vh;
         }
 
     </style>
@@ -166,8 +164,9 @@
     <div class="container">
         <h1>RICOH GR Image Processor</h1>
 
-        <!-- 全屏背景层，用于预览时铺满屏幕 -->
+        <!-- 全屏背景层：底层 + 覆盖层（新背景从下滑入覆盖旧背景） -->
         <div id="bg-layer"></div>
+        <div id="bg-layer-next"></div>
 
         <!-- 相机层：只负责显示相机画面，居中缩放 -->
         <div id="camera-layer">
@@ -195,13 +194,17 @@
         const downloadBtn = document.getElementById('downloadBtn');
         const backgroundBtn = document.getElementById('backgroundBtn');
         const bgLayer = document.getElementById('bg-layer');
+        const bgLayerNext = document.getElementById('bg-layer-next');
+        const cameraLayer = document.getElementById('camera-layer');
 
         const maskImg = new Image();
 
         let mainImg = null;
         let currentImgDataUrl = null;
+        let currentImgName = 'image'; // 原始文件名（不含扩展名）
         let backgroundMode = 0; // 0: 无; 1: 白 #D9D9D9; 2: 黑 #262626; 3: 当前图做背景
         let previousMode = 0;
+        let bgTransitionId = 0; // 防止快速点击时旧 transitionend 干扰
         const PREVIEW_SCALE = 0.5;
 
         // 主图淡入动画
@@ -233,6 +236,7 @@
         imageLoader.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
+            currentImgName = file.name.replace(/\.[^.]+$/, '');
 
             const reader = new FileReader();
             reader.onload = (event) => {
@@ -243,9 +247,10 @@
                     fadeAlpha = 0;
                     fadeStart = performance.now();
                     requestAnimationFrame(animate);
-                    // 如果当前是背景图模式，同步更新预览背景
+                    // 如果当前是背景图模式，同步更新预览背景（两层都更新）
                     if (backgroundMode === 3) {
                         bgLayer.style.backgroundImage = `url(${currentImgDataUrl})`;
+                        bgLayerNext.style.backgroundImage = `url(${currentImgDataUrl})`;
                     }
                 };
                 img.src = event.target.result;
@@ -282,84 +287,86 @@
             }
         }
 
-        // 控制 bg-layer 的预览背景（CSS transition 做滑入/淡出动画）
+        // 设置某一层的背景内容
+        function setLayerContent(layer, mode) {
+            if (mode === 1) {
+                layer.style.backgroundColor = '#D9D9D9';
+                layer.style.backgroundImage = 'none';
+            } else if (mode === 2) {
+                layer.style.backgroundColor = '#262626';
+                layer.style.backgroundImage = 'none';
+            } else if (mode === 3) {
+                layer.style.backgroundColor = '#000';
+                if (currentImgDataUrl) {
+                    layer.style.backgroundImage = `url(${currentImgDataUrl})`;
+                }
+            }
+        }
+
+        // 立即重置某一层到隐藏状态
+        function resetLayer(layer) {
+            layer.classList.add('bg-no-transition');
+            layer.classList.remove('bg-visible');
+            layer.style.backgroundColor = 'transparent';
+            layer.style.backgroundImage = 'none';
+            requestAnimationFrame(() => layer.classList.remove('bg-no-transition'));
+        }
+
+        // 控制 bg-layer 的预览背景
+        // 覆盖过渡：新背景从下方滑入覆盖旧背景；背景→无 = 向下滑出
         function updateBgLayer() {
+            bgTransitionId++;
+            const myId = bgTransitionId;
+
+            // 同步切换相机预览大小
             if (backgroundMode === 0) {
-                if (previousMode === 3) {
-                    // 从背景图片 → 无：淡出渐变
-                    bgLayer.classList.remove('bg-no-transition');
-                    bgLayer.classList.add('bg-fading');
-                    const handler = (e) => {
-                        if (e.propertyName !== 'opacity') return;
-                        bgLayer.removeEventListener('transitionend', handler);
-                        bgLayer.classList.add('bg-no-transition');
-                        bgLayer.classList.remove('bg-visible', 'bg-fading');
-                        bgLayer.style.backgroundColor = 'transparent';
-                        bgLayer.style.backgroundImage = 'none';
-                        requestAnimationFrame(() => bgLayer.classList.remove('bg-no-transition'));
-                    };
-                    bgLayer.addEventListener('transitionend', handler);
-                } else {
-                    // 其他 → 无：立即隐藏
-                    bgLayer.classList.add('bg-no-transition');
-                    bgLayer.classList.remove('bg-visible', 'bg-fading');
+                cameraLayer.classList.remove('with-bg');
+            } else {
+                cameraLayer.classList.add('with-bg');
+            }
+
+            if (backgroundMode === 0) {
+                // → 无背景：两层都清掉，bgLayer 向下滑出
+                resetLayer(bgLayerNext);
+                bgLayer.classList.remove('bg-no-transition');
+                bgLayer.classList.remove('bg-visible');
+                const handler = (e) => {
+                    if (e.propertyName !== 'transform') return;
+                    bgLayer.removeEventListener('transitionend', handler);
+                    if (myId !== bgTransitionId) return;
                     bgLayer.style.backgroundColor = 'transparent';
                     bgLayer.style.backgroundImage = 'none';
-                    requestAnimationFrame(() => bgLayer.classList.remove('bg-no-transition'));
-                }
-            } else if (backgroundMode === 1) {
-                // 无 → 白色 #D9D9D9：从下方滑入
-                bgLayer.classList.remove('bg-no-transition', 'bg-fading');
-                bgLayer.style.backgroundColor = '#D9D9D9';
-                bgLayer.style.backgroundImage = 'none';
+                };
+                bgLayer.addEventListener('transitionend', handler);
+
+            } else if (!bgLayer.classList.contains('bg-visible')) {
+                // 当前无可见背景 → 直接在 bgLayer 上滑入
+                bgLayer.classList.add('bg-no-transition');
                 bgLayer.classList.remove('bg-visible');
+                setLayerContent(bgLayer, backgroundMode);
                 requestAnimationFrame(() => {
+                    bgLayer.classList.remove('bg-no-transition');
                     requestAnimationFrame(() => bgLayer.classList.add('bg-visible'));
                 });
-            } else if (backgroundMode === 2) {
-                if (previousMode === 1) {
-                    // 白 → 黑：层已可见，平滑变色
-                    bgLayer.style.backgroundColor = '#262626';
-                    bgLayer.style.backgroundImage = 'none';
-                } else {
-                    // 其他 → 黑 #262626：从下方滑入
-                    bgLayer.classList.remove('bg-no-transition', 'bg-fading');
-                    bgLayer.style.backgroundColor = '#262626';
-                    bgLayer.style.backgroundImage = 'none';
-                    bgLayer.classList.remove('bg-visible');
-                    requestAnimationFrame(() => {
-                        requestAnimationFrame(() => bgLayer.classList.add('bg-visible'));
-                    });
-                }
-            } else if (backgroundMode === 3) {
-                if (previousMode === 2 && bgLayer.classList.contains('bg-visible')) {
-                    // 黑 → 图片：先滑出再滑入（与"无→黑"同款动画）
-                    bgLayer.classList.remove('bg-no-transition', 'bg-fading');
-                    bgLayer.classList.remove('bg-visible');
-                    const handler = (e) => {
-                        if (e.propertyName !== 'transform') return;
-                        bgLayer.removeEventListener('transitionend', handler);
-                        bgLayer.style.backgroundColor = '#000';
-                        if (currentImgDataUrl) {
-                            bgLayer.style.backgroundImage = `url(${currentImgDataUrl})`;
-                        }
-                        requestAnimationFrame(() => {
-                            requestAnimationFrame(() => bgLayer.classList.add('bg-visible'));
-                        });
-                    };
-                    bgLayer.addEventListener('transitionend', handler);
-                } else {
-                    // 其他 → 图片：从下方滑入
-                    bgLayer.classList.remove('bg-no-transition', 'bg-fading');
-                    bgLayer.style.backgroundColor = '#000';
-                    if (currentImgDataUrl) {
-                        bgLayer.style.backgroundImage = `url(${currentImgDataUrl})`;
-                    }
-                    bgLayer.classList.remove('bg-visible');
-                    requestAnimationFrame(() => {
-                        requestAnimationFrame(() => bgLayer.classList.add('bg-visible'));
-                    });
-                }
+
+            } else {
+                // 当前有可见背景 → bgLayerNext 从下方覆盖滑入
+                bgLayerNext.classList.add('bg-no-transition');
+                bgLayerNext.classList.remove('bg-visible');
+                setLayerContent(bgLayerNext, backgroundMode);
+                requestAnimationFrame(() => {
+                    bgLayerNext.classList.remove('bg-no-transition');
+                    requestAnimationFrame(() => bgLayerNext.classList.add('bg-visible'));
+                });
+                // 覆盖完成后：把内容转移到 bgLayer，隐藏 bgLayerNext
+                const handler = (e) => {
+                    if (e.propertyName !== 'transform') return;
+                    bgLayerNext.removeEventListener('transitionend', handler);
+                    if (myId !== bgTransitionId) return;
+                    setLayerContent(bgLayer, backgroundMode);
+                    resetLayer(bgLayerNext);
+                };
+                bgLayerNext.addEventListener('transitionend', handler);
             }
         }
 
@@ -428,58 +435,25 @@
             ctx.drawImage(maskImg, 0, 0, canvas.width, canvas.height);
         }
 
-        // 导出：合成「背景 + 相机主图 + 遮罩」到一个标准 3:2 的 offscreen canvas
-        downloadBtn.addEventListener('click', () => {
-            const camW = maskImg.width;
-            const camH = maskImg.height;
-            const bgH = camH * 5 / 3;
-            const bgW = bgH * 3 / 2;
-            const camX = (bgW - camW) / 2;
-            const camY = (bgH - camH) / 2;
+        // ── 通用工具：在 offscreen ctx 上以 cover 方式填充一张图 ──
+        function drawCoverToOffscreen(octx, img, dx, dy, dW, dH) {
+            const dr = dW / dH, sr = img.width / img.height;
+            let sx, sy, sW, sH;
+            if (sr > dr) { sH = img.height; sW = sH * dr; sx = (img.width - sW) / 2; sy = 0; }
+            else          { sW = img.width;  sH = sW / dr; sx = 0; sy = (img.height - sH) / 2; }
+            octx.drawImage(img, sx, sy, sW, sH, dx, dy, dW, dH);
+        }
 
-            const offscreen = document.createElement('canvas');
-            offscreen.width = bgW;
-            offscreen.height = bgH;
-            const octx = offscreen.getContext('2d');
-
-            // 底层：背景
-            if (backgroundMode === 1) {
-                octx.fillStyle = '#D9D9D9';
-                octx.fillRect(0, 0, bgW, bgH);
-            } else if (backgroundMode === 2) {
-                octx.fillStyle = '#262626';
-                octx.fillRect(0, 0, bgW, bgH);
-            } else if (backgroundMode === 3 && mainImg) {
-                const scale = Math.max(bgW / mainImg.width, bgH / mainImg.height);
-                const w = mainImg.width * scale;
-                const h = mainImg.height * scale;
-                const x = (bgW - w) / 2;
-                const y = (bgH - h) / 2;
-                octx.drawImage(mainImg, x, y, w, h);
-            }
-            // backgroundMode === 0：透明底
-
-            // 中间层：相机主图
+        // ── 通用工具：在 offscreen ctx 上绘制相机（主图 + 遮罩 + 阴影）──
+        function drawCameraToOffscreen(octx, camX, camY, camW, camH) {
             if (mainImg) {
-                const destRatio = innerW / innerH;
-                const srcRatio = mainImg.width / mainImg.height;
+                const dr = innerW / innerH, sr = mainImg.width / mainImg.height;
                 let sx, sy, sW, sH;
-                if (srcRatio > destRatio) {
-                    sH = mainImg.height;
-                    sW = sH * destRatio;
-                    sx = (mainImg.width - sW) / 2;
-                    sy = 0;
-                } else {
-                    sW = mainImg.width;
-                    sH = sW / destRatio;
-                    sx = 0;
-                    sy = (mainImg.height - sH) / 2;
-                }
+                if (sr > dr) { sH = mainImg.height; sW = sH * dr; sx = (mainImg.width - sW) / 2; sy = 0; }
+                else          { sW = mainImg.width;  sH = sW / dr; sx = 0; sy = (mainImg.height - sH) / 2; }
                 octx.drawImage(mainImg, sx, sy, sW, sH,
                     camX + innerX, camY + innerY, innerW, innerH);
             }
-
-            // 最上层：遮罩（带阴影，与预览 CSS drop-shadow 一致）
             octx.save();
             octx.shadowColor = 'rgba(0, 0, 0, 0.45)';
             octx.shadowBlur = 48;
@@ -487,9 +461,69 @@
             octx.shadowOffsetY = 8;
             octx.drawImage(maskImg, camX, camY, camW, camH);
             octx.restore();
+        }
 
+        // ── 导出 ──
+        downloadBtn.addEventListener('click', () => {
+            const camW = maskImg.width;
+            const camH = maskImg.height;
+
+            const offscreen = document.createElement('canvas');
+            const octx = offscreen.getContext('2d');
             const link = document.createElement('a');
-            link.download = 'ricoh-gr-rendering.png';
+            const suffix = ['sticker', 'whitebg', 'blackbg', 'photobg'][backgroundMode];
+            link.download = `${currentImgName}_${suffix}.png`;
+
+            if (backgroundMode === 0) {
+                // ─ 无背景：3:2 输出，透明底 ─
+                const bgH = camH * 5 / 3;
+                const bgW = bgH * 3 / 2;
+                const cx = (bgW - camW) / 2;
+                const cy = (bgH - camH) / 2;
+                offscreen.width = bgW;
+                offscreen.height = bgH;
+                drawCameraToOffscreen(octx, cx, cy, camW, camH);
+
+            } else if (backgroundMode === 1 || backgroundMode === 2) {
+                // ─ 白/黑背景：3:4 输出，上半相机 + 下半原图 ─
+                const outW = camH * 3;
+                const outH = camH * 4;
+                const topH = outH / 2;           // 上半区 3:2
+                const cx = (outW - camW) / 2;
+                const cy = (topH - camH) / 2;
+                offscreen.width = outW;
+                offscreen.height = outH;
+
+                // 上半区背景色
+                octx.fillStyle = backgroundMode === 1 ? '#D9D9D9' : '#262626';
+                octx.fillRect(0, 0, outW, topH);
+
+                // 上半区相机
+                drawCameraToOffscreen(octx, cx, cy, camW, camH);
+
+                // 下半区原图（cover 填充 3:2）
+                if (mainImg) {
+                    drawCoverToOffscreen(octx, mainImg, 0, topH, outW, topH);
+                }
+
+            } else if (backgroundMode === 3) {
+                // ─ 图片背景：3:4 输出，原图居中裁切做背景，相机居中 ─
+                const outW = camH * 3;
+                const outH = camH * 4;
+                const cx = (outW - camW) / 2;
+                const cy = (outH - camH) / 2;
+                offscreen.width = outW;
+                offscreen.height = outH;
+
+                // 背景：原图 cover 裁切到 3:4
+                if (mainImg) {
+                    drawCoverToOffscreen(octx, mainImg, 0, 0, outW, outH);
+                }
+
+                // 相机居中
+                drawCameraToOffscreen(octx, cx, cy, camW, camH);
+            }
+
             link.href = offscreen.toDataURL('image/png');
             link.click();
         });
