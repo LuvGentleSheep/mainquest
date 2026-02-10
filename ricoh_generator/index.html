@@ -4,7 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>RICOH GR IV Canvas</title>
-    <link rel="icon" type="image/jpeg" href="logo.jpeg">
+    <link rel="icon" type="image/png" href="logo-192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="logo-180.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1a1a1a">
     <style>
         :root {
             --bg-color: #1a1a1a;
@@ -541,6 +546,11 @@
         });
 
         updateBackgroundUI();
+
+        // 注册 Service Worker（离线可用）
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js');
+        }
     </script>
 </body>
 </html>
