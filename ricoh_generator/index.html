@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RICOH GR IV Canvas</title>
+    <title>RICOH GR IV Cover</title>
     <link rel="icon" type="image/png" href="logo-192.png">
     <link rel="apple-touch-icon" sizes="180x180" href="logo-180.png">
     <link rel="manifest" href="manifest.json">
@@ -45,15 +45,15 @@
 
         h1 {
             position: fixed;
-            top: 20px;
+            top: 63px;
             left: 50%;
-            transform: translateX(-50%);
+            transform: translate(-50%, -50%);
             z-index: 10;
-            font-weight: 300;
+            font-weight: 400;
             letter-spacing: 2px;
             color: var(--accent-color);
             text-transform: uppercase;
-            font-size: 1.2rem;
+            font-size: 1.5rem;
             margin: 0;
             pointer-events: none;
         }
@@ -90,7 +90,6 @@
             border-radius: 999px;
 
             display: flex;
-            gap: 16px;
             align-items: center;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
         }
@@ -101,7 +100,7 @@
 
         .btn {
             background: transparent;
-            border: 1px solid var(--accent-color);
+            border: 1px solid transparent;
             color: var(--text-color);
             padding: 10px;
             cursor: pointer;
@@ -118,8 +117,26 @@
             color: var(--bg-color);
         }
 
+        .btn:active {
+            background: var(--text-color);
+            color: var(--bg-color);
+        }
+
         .btn svg {
             display: block;
+            flex-shrink: 0;
+        }
+
+        #backgroundBtn, #downloadBtn {
+            overflow: hidden;
+            margin-left: 16px;
+            max-width: 50px;
+            transition: max-width 0.4s cubic-bezier(0.33, 1, 0.68, 1),
+                        padding 0.4s cubic-bezier(0.33, 1, 0.68, 1),
+                        margin-left 0.4s cubic-bezier(0.33, 1, 0.68, 1),
+                        border-width 0.4s cubic-bezier(0.33, 1, 0.68, 1),
+                        opacity 0.3s ease,
+                        background 0.3s, color 0.3s;
         }
 
         /* === 预览层分离：双背景层（覆盖过渡）+ 相机层 === */
@@ -179,7 +196,7 @@
 <body>
 
     <div class="container">
-        <h1>RICOH GR IV Canvas</h1>
+        <h1>RICOH GR IV Cover</h1>
 
         <!-- 全屏背景层：底层 + 覆盖层（新背景从下滑入覆盖旧背景） -->
         <div id="bg-layer"></div>
@@ -195,9 +212,9 @@
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             </label>
             <input type="file" id="imageLoader" accept="image/*">
-            <button class="btn" id="backgroundBtn" type="button" title="切换背景">
+            <button class="btn" id="backgroundBtn" type="button" title="切换背景" style="display:none">
             </button>
-            <button class="btn" id="downloadBtn" title="保存渲染">
+            <button class="btn" id="downloadBtn" title="保存渲染" style="display:none">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             </button>
         </div>
@@ -249,6 +266,36 @@
         };
         maskImg.src = MASK_SRC;
 
+        // ── 工具栏展开动画 ──
+        let toolbarRevealed = false;
+        function revealToolbarButtons() {
+            if (toolbarRevealed) return;
+            toolbarRevealed = true;
+            const btns = [backgroundBtn, downloadBtn];
+            // 先显示但以折叠状态呈现
+            btns.forEach(btn => {
+                btn.style.display = '';
+                btn.style.maxWidth = '0';
+                btn.style.padding = '0';
+                btn.style.borderWidth = '0';
+                btn.style.opacity = '0';
+                btn.style.marginLeft = '0';
+            });
+            void backgroundBtn.offsetHeight;          // 提交折叠状态
+            // 下载按钮稍微延迟，产生依次展开的效果
+            downloadBtn.style.transitionDelay = '0.06s';
+            // 移除内联样式，回落到 CSS 目标值，触发过渡动画
+            btns.forEach(btn => {
+                btn.style.maxWidth = '';
+                btn.style.padding = '';
+                btn.style.borderWidth = '';
+                btn.style.opacity = '';
+                btn.style.marginLeft = '';
+            });
+            // 动画结束后清除延迟，避免影响后续交互
+            setTimeout(() => { downloadBtn.style.transitionDelay = ''; }, 600);
+        }
+
         // 选图：只影响主图 + 淡入动画
         imageLoader.addEventListener('change', (e) => {
             const file = e.target.files[0];
@@ -264,6 +311,8 @@
                     fadeAlpha = 0;
                     fadeStart = performance.now();
                     requestAnimationFrame(animate);
+                    // 首次加载照片后展开工具栏
+                    revealToolbarButtons();
                     // 如果当前是背景图模式，同步更新预览背景（两层都更新）
                     if (backgroundMode === 3) {
                         bgLayer.style.backgroundImage = `url(${currentImgDataUrl})`;
@@ -277,6 +326,7 @@
 
         // 背景按钮：无 → 白 → 黑 → 当前图 → 无 ...
         backgroundBtn.addEventListener('click', () => {
+            if (bgAnimating) return;          // 动画进行中，忽略点击
             previousMode = backgroundMode;
             backgroundMode = (backgroundMode + 1) % 4;
             updateBackgroundUI();
@@ -329,9 +379,25 @@
             requestAnimationFrame(() => layer.classList.remove('bg-no-transition'));
         }
 
+        // ── 动画锁：动画进行中禁止切换 ──
+        let bgAnimating = false;
+
+        function unlockBgBtn() {
+            bgAnimating = false;
+            backgroundBtn.style.opacity = '';
+            backgroundBtn.style.pointerEvents = '';
+        }
+
+        function lockBgBtn() {
+            bgAnimating = true;
+            backgroundBtn.style.opacity = '0.35';
+            backgroundBtn.style.pointerEvents = 'none';
+        }
+
         // 控制 bg-layer 的预览背景
         // 覆盖过渡：新背景从下方滑入覆盖旧背景；背景→无 = 向下滑出
         function updateBgLayer() {
+            lockBgBtn();
             bgTransitionId++;
             const myId = bgTransitionId;
 
@@ -353,6 +419,7 @@
                     if (myId !== bgTransitionId) return;
                     bgLayer.style.backgroundColor = 'transparent';
                     bgLayer.style.backgroundImage = 'none';
+                    unlockBgBtn();
                 };
                 bgLayer.addEventListener('transitionend', handler);
 
@@ -365,6 +432,13 @@
                     bgLayer.classList.remove('bg-no-transition');
                     requestAnimationFrame(() => bgLayer.classList.add('bg-visible'));
                 });
+                const handler = (e) => {
+                    if (e.propertyName !== 'transform') return;
+                    bgLayer.removeEventListener('transitionend', handler);
+                    if (myId !== bgTransitionId) return;
+                    unlockBgBtn();
+                };
+                bgLayer.addEventListener('transitionend', handler);
 
             } else {
                 // 当前有可见背景 → bgLayerNext 从下方覆盖滑入
@@ -382,6 +456,7 @@
                     if (myId !== bgTransitionId) return;
                     setLayerContent(bgLayer, backgroundMode);
                     resetLayer(bgLayerNext);
+                    unlockBgBtn();
                 };
                 bgLayerNext.addEventListener('transitionend', handler);
             }
@@ -578,7 +653,7 @@
                     try {
                         await navigator.share({
                             files: [file],
-                            title: 'GR IV Canvas'
+                            title: 'GR IV Cover'
                         });
                         showToast('已保存', 1500);
                     } catch (err) {

@@ -1,5 +1,5 @@
 {
-  "name": "RICOH GR IV Canvas",
+  "name": "RICOH GR IV Cover",
   "short_name": "GR Cover",
   "description": "为 RICOH GR IV 照片生成相机遮罩渲染图",
   "start_url": "./index.html",

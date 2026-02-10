@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gr-cover-v1';
+const CACHE_NAME = 'gr-cover-v7';
 const ASSETS = [
   './',
   './index.html',
@@ -10,7 +10,7 @@ const ASSETS = [
   './manifest.json'
 ];
 
-// 安装时缓存所有资源
+// 安装时缓存所有资源，并立即激活
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME)
@@ -28,9 +28,16 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// 请求时优先用缓存，没有再走网络
+// 网络优先：有网时拿最新资源并更新缓存，离线时用缓存兜底
 self.addEventListener('fetch', (e) => {
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
+    fetch(e.request)
+      .then(response => {
+        // 拿到新资源后更新缓存
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+        return response;
+      })
+      .catch(() => caches.match(e.request))
   );
 });
