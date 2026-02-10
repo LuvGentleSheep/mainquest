@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>RICOH GR IV Cover</title>
     <link rel="icon" type="image/png" href="logo-192.png">
     <link rel="apple-touch-icon" sizes="180x180" href="logo-180.png">
@@ -45,7 +45,7 @@
 
         h1 {
             position: fixed;
-            top: 63px;
+            top: calc(63px + env(safe-area-inset-top));
             left: 50%;
             transform: translate(-50%, -50%);
             z-index: 10;
@@ -81,7 +81,7 @@
         .controls {
             position: fixed;
             left: 50%;
-            bottom: 30px;
+            bottom: calc(30px + env(safe-area-inset-bottom));
             transform: translateX(-50%);
             z-index: 10;
 
@@ -160,7 +160,8 @@
             background-repeat: no-repeat;
             background-size: cover;
             transform: translateY(100%);
-            transition: transform 0.7s cubic-bezier(0.33, 1, 0.68, 1);
+            transition: transform 0.7s cubic-bezier(0.33, 1, 0.68, 1),
+                        opacity 0.5s ease;
         }
 
         .bg-visible {
@@ -253,7 +254,9 @@
         });
 
         let mainImg = null;
+        let prevImg = null;              // 上一张图（用于交叉淡入）
         let currentImgDataUrl = null;
+        let currentImgStaticUrl = null;  // 扁平化后的静态 SDR JPEG（用于 background-image）
         let currentImgName = 'image'; // 原始文件名（不含扩展名）
         let backgroundMode = 0; // 0: 无; 1: 白 #D9D9D9; 2: 黑 #262626; 3: 当前图做背景
         let previousMode = 0;
@@ -326,16 +329,28 @@
                 currentImgDataUrl = event.target.result;
                 const img = new Image();
                 img.onload = () => {
+                    prevImg = mainImg;    // 保留旧图用于交叉淡入
+                    fadeAlpha = 0;        // 先重置透明度，再替换图片，避免新图闪现
                     mainImg = img;
-                    fadeAlpha = 0;
-                    fadeStart = performance.now();
-                    requestAnimationFrame(animate);
+
+                    // 扁平化：取第一帧 + 强制 SDR + 去除动画
+                    const flatCanvas = document.createElement('canvas');
+                    flatCanvas.width = img.width;
+                    flatCanvas.height = img.height;
+                    flatCanvas.getContext('2d').drawImage(img, 0, 0);
+                    currentImgStaticUrl = flatCanvas.toDataURL('image/jpeg', 0.92);
+
+                    // fadeStart 在第一帧内设置，保证首帧 t=0，杜绝闪烁
+                    fadeStart = null;
+                    requestAnimationFrame(function firstFrame(now) {
+                        fadeStart = now;
+                        animate(now);
+                    });
                     // 首次加载照片后展开工具栏
                     revealToolbarButtons();
-                    // 如果当前是背景图模式，同步更新预览背景（两层都更新）
+                    // 如果当前是背景图模式，渐变切换背景
                     if (backgroundMode === 3) {
-                        bgLayer.style.backgroundImage = `url(${currentImgDataUrl})`;
-                        bgLayerNext.style.backgroundImage = `url(${currentImgDataUrl})`;
+                        crossfadeBgPhoto(currentImgStaticUrl);
                     }
                 };
                 img.src = event.target.result;
@@ -383,10 +398,38 @@
                 layer.style.backgroundImage = 'none';
             } else if (mode === 3) {
                 layer.style.backgroundColor = '#000';
-                if (currentImgDataUrl) {
-                    layer.style.backgroundImage = `url(${currentImgDataUrl})`;
+                if (currentImgStaticUrl) {
+                    layer.style.backgroundImage = `url(${currentImgStaticUrl})`;
                 }
             }
+        }
+
+        // 照片切换时背景渐变（mode 3 专用）
+        function crossfadeBgPhoto(staticUrl) {
+            // bgLayerNext 定位到可见位置（无动画），但透明
+            bgLayerNext.classList.add('bg-no-transition');
+            bgLayerNext.classList.add('bg-visible');
+            bgLayerNext.style.backgroundColor = '#000';
+            bgLayerNext.style.backgroundImage = `url(${staticUrl})`;
+            bgLayerNext.style.opacity = '0';
+            void bgLayerNext.offsetHeight;
+            bgLayerNext.classList.remove('bg-no-transition');
+            // 渐变显现
+            bgLayerNext.style.opacity = '1';
+            // 渐变完成后转移到 bgLayer
+            const handler = (e) => {
+                if (e.propertyName !== 'opacity') return;
+                bgLayerNext.removeEventListener('transitionend', handler);
+                bgLayer.style.backgroundImage = `url(${staticUrl})`;
+                // 瞬间重置 bgLayerNext
+                bgLayerNext.classList.add('bg-no-transition');
+                bgLayerNext.classList.remove('bg-visible');
+                bgLayerNext.style.opacity = '';
+                bgLayerNext.style.backgroundImage = 'none';
+                void bgLayerNext.offsetHeight;
+                bgLayerNext.classList.remove('bg-no-transition');
+            };
+            bgLayerNext.addEventListener('transitionend', handler);
         }
 
         // 立即重置某一层到隐藏状态
@@ -496,6 +539,7 @@
                 } else {
                     fadeStart = null;
                     fadeAlpha = 1;
+                    prevImg = null;       // 淡入完成，释放旧图
                 }
             }
 
@@ -532,7 +576,14 @@
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 相机内部主图（淡入，缩放坐标）
+            // 相机内部主图（交叉淡入：旧图保持 + 新图在上方渐入覆盖）
+            if (prevImg) {
+                ctx.save();
+                ctx.imageSmoothingEnabled = false;
+                ctx.globalAlpha = 1;
+                drawImageCoverToRect(prevImg, pInnerX, pInnerY, pInnerW, pInnerH);
+                ctx.restore();
+            }
             if (mainImg) {
                 ctx.save();
                 ctx.imageSmoothingEnabled = false;
