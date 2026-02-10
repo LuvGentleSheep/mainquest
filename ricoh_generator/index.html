@@ -106,20 +106,31 @@
             cursor: pointer;
             transition: all 0.3s;
             border-radius: 50%;
+            -webkit-tap-highlight-color: transparent;
             display: flex;
             align-items: center;
             justify-content: center;
             line-height: 0;
         }
 
-        .btn:hover {
+        /* 桌面端：hover 显示填充 */
+        @media (hover: hover) {
+            .btn:hover {
+                background: var(--text-color);
+                color: var(--bg-color);
+            }
+        }
+
+        /* 点击高亮（桌面+移动通用） */
+        .btn.btn-active {
             background: var(--text-color);
             color: var(--bg-color);
         }
 
-        .btn:active {
-            background: var(--text-color);
-            color: var(--bg-color);
+        /* 动画锁定禁用态（优先级最高） */
+        .btn.btn-disabled {
+            opacity: 0.35;
+            pointer-events: none;
         }
 
         .btn svg {
@@ -232,6 +243,14 @@
         const cameraLayer = document.getElementById('camera-layer');
 
         const maskImg = new Image();
+
+        // ── 按钮点击反馈：高亮 700ms 后渐隐 ──
+        document.querySelectorAll('.btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                btn.classList.add('btn-active');
+                setTimeout(() => btn.classList.remove('btn-active'), 700);
+            });
+        });
 
         let mainImg = null;
         let currentImgDataUrl = null;
@@ -384,14 +403,13 @@
 
         function unlockBgBtn() {
             bgAnimating = false;
-            backgroundBtn.style.opacity = '';
-            backgroundBtn.style.pointerEvents = '';
+            backgroundBtn.classList.remove('btn-disabled');
         }
 
         function lockBgBtn() {
             bgAnimating = true;
-            backgroundBtn.style.opacity = '0.35';
-            backgroundBtn.style.pointerEvents = 'none';
+            backgroundBtn.classList.remove('btn-active');
+            backgroundBtn.classList.add('btn-disabled');
         }
 
         // 控制 bg-layer 的预览背景
