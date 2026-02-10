@@ -480,14 +480,39 @@
             octx.restore();
         }
 
-        // ── 导出 ──
+        // ── Toast 提示 ──
+        let toastEl = null;
+        function showToast(msg, duration = 3000) {
+            if (toastEl) toastEl.remove();
+            toastEl = document.createElement('div');
+            toastEl.textContent = msg;
+            Object.assign(toastEl.style, {
+                position: 'fixed', top: '60px', left: '50%', transform: 'translateX(-50%)',
+                background: 'rgba(50,50,50,0.92)', color: '#fff', padding: '10px 20px',
+                borderRadius: '20px', fontSize: '14px', zIndex: '9999',
+                opacity: '0', transition: 'opacity 0.3s', pointerEvents: 'none',
+                maxWidth: '80vw', textAlign: 'center', backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)'
+            });
+            document.body.appendChild(toastEl);
+            requestAnimationFrame(() => { toastEl.style.opacity = '1'; });
+            setTimeout(() => {
+                if (toastEl) { toastEl.style.opacity = '0'; setTimeout(() => toastEl?.remove(), 300); }
+            }, duration);
+        }
+
+        // ── 平台检测 ──
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const iosShareHintKey = 'gr-canvas-ios-share-hint-shown';
+
+        // ── 导出（优化 iOS 保存体验）──
         downloadBtn.addEventListener('click', () => {
             const camW = maskImg.width;
             const camH = maskImg.height;
 
             const offscreen = document.createElement('canvas');
             const octx = offscreen.getContext('2d');
-            const link = document.createElement('a');
             const suffix = ['sticker', 'whitebg', 'blackbg', 'photobg'][backgroundMode];
 
             if (backgroundMode === 0) {
@@ -504,20 +529,16 @@
                 // ─ 白/黑背景：3:4 输出，上半相机 + 下半原图 ─
                 const outW = camH * 3;
                 const outH = camH * 4;
-                const topH = outH / 2;           // 上半区 3:2
+                const topH = outH / 2;
                 const cx = (outW - camW) / 2;
                 const cy = (topH - camH) / 2;
                 offscreen.width = outW;
                 offscreen.height = outH;
 
-                // 上半区背景色
                 octx.fillStyle = backgroundMode === 1 ? '#D9D9D9' : '#262626';
                 octx.fillRect(0, 0, outW, topH);
-
-                // 上半区相机
                 drawCameraToOffscreen(octx, cx, cy, camW, camH);
 
-                // 下半区原图（cover 填充 3:2）
                 if (mainImg) {
                     drawCoverToOffscreen(octx, mainImg, 0, topH, outW, topH);
                 }
@@ -531,19 +552,58 @@
                 offscreen.width = outW;
                 offscreen.height = outH;
 
-                // 背景：原图 cover 裁切到 3:4
                 if (mainImg) {
                     drawCoverToOffscreen(octx, mainImg, 0, 0, outW, outH);
                 }
-
-                // 相机居中
                 drawCameraToOffscreen(octx, cx, cy, camW, camH);
             }
 
-            link.download = `${currentImgName}_${suffix}.jpg`;
-            link.href = offscreen.toDataURL('image/jpeg', 0.92);
-            link.click();
+            const fileName = `${currentImgName}_${suffix}.jpg`;
+
+            // 使用 toBlob 异步导出（比 toDataURL 更高效）
+            offscreen.toBlob(async (blob) => {
+                if (!blob) { showToast('导出失败，请重试'); return; }
+
+                const file = new File([blob], fileName, { type: 'image/jpeg' });
+
+                // iOS：优先使用 Web Share API（弹出原生分享面板，可直接"存储图像"）
+                if (isIOS && navigator.canShare && navigator.canShare({ files: [file] })) {
+                    // 首次使用时，先显示引导提示再弹出分享面板
+                    if (!localStorage.getItem(iosShareHintKey)) {
+                        localStorage.setItem(iosShareHintKey, '1');
+                        showToast('点击分享面板中的「存储图像」保存到相册', 3500);
+                        // 稍等片刻让用户看到提示
+                        await new Promise(r => setTimeout(r, 1200));
+                    }
+                    try {
+                        await navigator.share({
+                            files: [file],
+                            title: 'GR IV Canvas'
+                        });
+                        showToast('已保存', 1500);
+                    } catch (err) {
+                        // 用户取消分享不算错误
+                        if (err.name !== 'AbortError') {
+                            fallbackDownload(blob, fileName);
+                        }
+                    }
+                } else {
+                    // 非 iOS 或不支持 Share API：使用 Blob URL 下载
+                    fallbackDownload(blob, fileName);
+                }
+            }, 'image/jpeg', 0.92);
         });
+
+        // ── 传统下载（非 iOS 或降级方案）──
+        function fallbackDownload(blob, fileName) {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = url;
+            link.click();
+            // 延迟释放 URL，避免下载中断
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+        }
 
         updateBackgroundUI();
 

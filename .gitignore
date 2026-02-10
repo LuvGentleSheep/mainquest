@@ -5,3 +5,7 @@ homepage/homepage_index.html.tmp.html
 Icon
 Icon
 Icon
+
+# HTTPS 测试用自签名证书
+ricoh_generator/cert.pem
+ricoh_generator/key.pem
