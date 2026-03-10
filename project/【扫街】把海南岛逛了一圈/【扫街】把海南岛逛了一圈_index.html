@@ -1,0 +1,645 @@
+
+    <!DOCTYPE html>
+    <html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+<title>【扫街】把海南岛逛了一圈</title>
+
+        <style>
+                body, html {
+                        margin: 0;
+                        padding: 0;
+                        height: 100%;
+                        font-family: Arial, sans-serif;
+                        background-color: #f5f5f5;
+                        color: #333;
+                        overflow: auto;
+                }
+                
+                /* 背景图片幻灯片效果 */
+                .background-slideshow {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        overflow: hidden;
+                        z-index: 0;
+                }
+                
+                .background-slideshow img {
+                        position: absolute;
+                        width: 100%;
+                        height: 100%;
+                        object-fit: cover; /* 保持背景图片比例裁切 */
+                        filter: blur(50px);
+                        opacity: 0; /* 初始状态下图片是透明的 */
+                        transition: opacity 2s ease-in-out; /* 平滑过渡效果 */
+                }
+                
+                .background-slideshow img.active {
+                        opacity: 1; /* 将当前显示的图片的透明度设置为1，使其可见 */
+                }
+                
+                header.banner {
+                        position: -webkit-sticky;
+                        position: sticky;
+                        top: 0;
+                        height: 70px;
+                        background: rgba(15, 15, 15, 0.8);
+                        backdrop-filter: blur(20px) saturate(180%);
+                        -webkit-backdrop-filter: blur(20px) saturate(180%);
+                        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+                        z-index: 1000; /* 确保header在最上层 */
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 0 32px;
+                        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+                }
+
+                header.banner h1 {
+                        font-size: 22px;
+                        font-weight: 700;
+                        margin: 0;
+                        background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.8) 100%);
+                        -webkit-background-clip: text;
+                        -webkit-text-fill-color: transparent;
+                        background-clip: text;
+                        letter-spacing: -0.5px;
+                }
+                
+                .gallery {
+                        display: flex;
+                        flex-wrap: wrap; /* 允许换行 */
+                        justify-content: center;
+                        gap: 1rem; /* 默认间距 */
+                        padding: 1rem;
+                        padding-bottom: 3rem; /* 设置与 footer 的距离 */
+                        position: relative;
+                        z-index: 1;
+                        max-width: 1000px; /* 固定瀑布流宽度 */
+                        margin: 1rem auto 3rem auto; /* 居中对齐，并设置顶部底部边距 */
+                }
+                
+                /* 当页面宽度大于1000px时，设置gap为1.5rem */
+                @media (min-width: 1000px) {
+                        .gallery {
+                                gap: 1.5rem;
+                        }
+                }        
+                .gallery img {
+                        flex: 1 1 calc(50% - 1rem); /* 每个图片占据两列中的一列 */
+                        max-width: calc(50% - 1rem);
+                        aspect-ratio: 4 / 3;
+                        height: auto;
+                        object-fit: cover; /* 保持比例裁剪 */
+                        margin-bottom: 0rem;
+                        transition: transform 0.3s, box-shadow 0.3s;
+                        box-shadow: 0 0 15px rgba(0,0,0,0.1);
+                        cursor: pointer;
+                        border-radius: 15px; /* 圆角矩形效果 */
+                }
+                
+                .gallery img:hover {
+                        transform: scale(1.05);
+                        box-shadow: 0 0 30px 10px rgba(255, 255, 255, 0.8);
+                }
+                
+                footer {
+                        background-color: rgba(0, 0, 0, 0.7);
+                        color: #fff;
+                        text-align: center;
+                        padding: 1rem;
+                        position: fixed;
+                        bottom: 0;
+                        width: 100%;
+                        z-index: 1000; /* 确保footer在最上层 */
+                        -webkit-backdrop-filter: blur(10px); /* 高斯模糊效果 */
+                        backdrop-filter: blur(10px);
+                }
+                
+                .social-links a {
+                        margin: 0 0.5rem;
+                        color: #fff;
+                        text-decoration: none;
+                }
+                
+                .social-links a:hover {
+                        text-decoration: underline;
+                }
+                
+                /* 模态视图 */
+                .modal {
+                        display: none;
+                        position: fixed;
+                        z-index: 2000; /* 确保模态视图在最上层 */
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                        height: 100%;
+                        overflow: auto;
+                        background-color: rgba(0, 0, 0, 0.9);
+                        backdrop-filter: blur(5px);
+                        justify-content: center;
+                        align-items: center; /* 上下居中对齐 */
+                }
+                
+                .modal-content {
+                        margin: auto;
+                        display: block;
+                        width: auto;
+                        height: auto;
+                        max-width: 100%;
+                        max-height: 100%;
+                }
+                
+                .modal-content.zoomed {
+                        transform: scale(2); /* 调整缩放比例 */
+                        cursor: zoom-out;
+                }
+                
+                .close {
+                        position: absolute;
+                        bottom: 30px;
+                        right: 35px;
+                        color: #f1f1f1;
+                        font-size: 40px;
+                        font-weight: bold;
+                        transition: 0.3s;
+                }
+                
+                .close:hover,
+                .close:focus {
+                        color: #bbb;
+                        text-decoration: none;
+                        cursor: pointer;
+                }
+                .prev {
+                        position: absolute;
+                        bottom: 30px;
+                        left: 50%; /* 水平居中 */
+                        transform: translateX(-50%) translateX(-30px);
+                        color: #f1f1f1;
+                        font-size: 40px;
+                        font-weight: bold;
+                        transition: 0.3s;
+                }
+                .prev:hover,
+                .prev:focus {
+                        color: #bbb;
+                        text-decoration: none;
+                        cursor: pointer;
+                }
+                .next {
+                        position: absolute;
+                        bottom: 30px;
+                        left: 50%; /* 水平居中 */
+                        transform: translateX(-50%) translateX(30px); /* 水平居中后向右偏移 20px */
+                        color: #f1f1f1;
+                        font-size: 40px;
+                        font-weight: bold;
+                        transition: 0.3s;
+                }
+                .next:hover,
+                .next:focus {
+                        color: #bbb;
+                        text-decoration: none;
+                        cursor: pointer;
+                }
+                .download-btn {
+                    position: absolute;
+                    bottom: 90px;
+                    right: 35px;
+                    background-color: rgba(0, 0, 0, 0.3); /* 半透明黑色背景 */
+                    -webkit-backdrop-filter: blur(10px); /* 高斯模糊效果 */
+                    color: white;
+                    border: none;
+                    padding: 10px 20px;
+                    font-size: 15px;
+                    font-weight: bold;
+                    cursor: pointer;
+                    border-radius: 15px;
+                    transition: background-color 0.3s ease;
+                    text-decoration: none;
+                }
+                
+                .download-btn:hover {
+                    background-color: #45a049;
+                }
+            
+                
+        </style>
+</head>
+<body>
+
+<!-- 背景图片幻灯片 -->
+<div class="background-slideshow" id="background-slideshow">
+
+    
+  <img class="lazy" data-src="./public/background/R0003919.jpg" alt="背景图片1">
+  <img class="lazy" data-src="./public/background/R0003928.jpg" alt="背景图片2">
+  <img class="lazy" data-src="./public/background/R0003972.jpg" alt="背景图片3">
+  <img class="lazy" data-src="./public/background/R0004057.jpg" alt="背景图片4">
+  <img class="lazy" data-src="./public/background/R0004138.jpg" alt="背景图片5">
+  <img class="lazy" data-src="./public/background/R0004239.jpg" alt="背景图片6">
+  <img class="lazy" data-src="./public/background/R0004295.jpg" alt="背景图片7">
+  <img class="lazy" data-src="./public/background/R0004377.jpg" alt="背景图片8">
+  <img class="lazy" data-src="./public/background/R0004460.jpg" alt="背景图片9">
+  <img class="lazy" data-src="./public/background/R0004524.jpg" alt="背景图片10">
+  <img class="lazy" data-src="./public/background/R0004555.jpg" alt="背景图片11">
+  <img class="lazy" data-src="./public/background/R0004692.jpg" alt="背景图片12">
+  <img class="lazy" data-src="./public/background/R0004755.jpg" alt="背景图片13">
+  <img class="lazy" data-src="./public/background/R0004778.jpg" alt="背景图片14">
+  <img class="lazy" data-src="./public/background/R0004792.jpg" alt="背景图片15">
+  <img class="lazy" data-src="./public/background/R0004873.jpg" alt="背景图片16">
+  <img class="lazy" data-src="./public/background/R0005020.jpg" alt="背景图片17">
+  <img class="lazy" data-src="./public/background/R0005023.jpg" alt="背景图片18">
+  <img class="lazy" data-src="./public/background/R0005029.jpg" alt="背景图片19">
+  <img class="lazy" data-src="./public/background/R0005034.jpg" alt="背景图片20">
+  <img class="lazy" data-src="./public/background/R0005037.jpg" alt="背景图片21">
+  <img class="lazy" data-src="./public/background/R0005069.jpg" alt="背景图片22">
+  <img class="lazy" data-src="./public/background/R0005090.jpg" alt="背景图片23">
+  <img class="lazy" data-src="./public/background/R0005123.jpg" alt="背景图片24">
+  <img class="lazy" data-src="./public/background/R0005176.jpg" alt="背景图片25">
+  <img class="lazy" data-src="./public/background/R0005181.jpg" alt="背景图片26">
+  <img class="lazy" data-src="./public/background/R0005287.jpg" alt="背景图片27">
+  <img class="lazy" data-src="./public/background/R0005424.jpg" alt="背景图片28">
+  <img class="lazy" data-src="./public/background/R0005534.jpg" alt="背景图片29">
+  <img class="lazy" data-src="./public/background/R0005570.jpg" alt="背景图片30">
+  <img class="lazy" data-src="./public/background/R0005639.jpg" alt="背景图片31">
+  <img class="lazy" data-src="./public/background/R0005696.jpg" alt="背景图片32">
+  <img class="lazy" data-src="./public/background/R0005755.jpg" alt="背景图片33">
+  <img class="lazy" data-src="./public/background/R0005763.jpg" alt="背景图片34">
+  <img class="lazy" data-src="./public/background/R0005768.jpg" alt="背景图片35">
+  <img class="lazy" data-src="./public/background/R0005792.jpg" alt="背景图片36">
+  <img class="lazy" data-src="./public/background/R0005819.jpg" alt="背景图片37">
+  <img class="lazy" data-src="./public/background/R0005822.jpg" alt="背景图片38">
+  <img class="lazy" data-src="./public/background/R0005894.jpg" alt="背景图片39">
+  <img class="lazy" data-src="./public/background/R0005925.jpg" alt="背景图片40">
+  <img class="lazy" data-src="./public/background/R0005990.jpg" alt="背景图片41">
+  <img class="lazy" data-src="./public/background/R0006131.jpg" alt="背景图片42">
+  <img class="lazy" data-src="./public/background/R0006147.jpg" alt="背景图片43">
+  <img class="lazy" data-src="./public/background/R0006167.jpg" alt="背景图片44">
+  <img class="lazy" data-src="./public/background/R0006241.jpg" alt="背景图片45">
+  <img class="lazy" data-src="./public/background/R0006250.jpg" alt="背景图片46">
+  <img class="lazy" data-src="./public/background/R0006276.jpg" alt="背景图片47">
+  <img class="lazy" data-src="./public/background/R0006333.jpg" alt="背景图片48">
+</div>
+<header class="banner">
+    <h1>【扫街】把海南岛逛了一圈</h1>
+</header>
+<div class="gallery" id="gallery">
+
+  <img class="lazy" data-src="./public/background/R0003919.jpg" alt="背景图片1">
+  <img class="lazy" data-src="./public/background/R0003928.jpg" alt="背景图片2">
+  <img class="lazy" data-src="./public/background/R0003972.jpg" alt="背景图片3">
+  <img class="lazy" data-src="./public/background/R0004057.jpg" alt="背景图片4">
+  <img class="lazy" data-src="./public/background/R0004138.jpg" alt="背景图片5">
+  <img class="lazy" data-src="./public/background/R0004239.jpg" alt="背景图片6">
+  <img class="lazy" data-src="./public/background/R0004295.jpg" alt="背景图片7">
+  <img class="lazy" data-src="./public/background/R0004377.jpg" alt="背景图片8">
+  <img class="lazy" data-src="./public/background/R0004460.jpg" alt="背景图片9">
+  <img class="lazy" data-src="./public/background/R0004524.jpg" alt="背景图片10">
+  <img class="lazy" data-src="./public/background/R0004555.jpg" alt="背景图片11">
+  <img class="lazy" data-src="./public/background/R0004692.jpg" alt="背景图片12">
+  <img class="lazy" data-src="./public/background/R0004755.jpg" alt="背景图片13">
+  <img class="lazy" data-src="./public/background/R0004778.jpg" alt="背景图片14">
+  <img class="lazy" data-src="./public/background/R0004792.jpg" alt="背景图片15">
+  <img class="lazy" data-src="./public/background/R0004873.jpg" alt="背景图片16">
+  <img class="lazy" data-src="./public/background/R0005020.jpg" alt="背景图片17">
+  <img class="lazy" data-src="./public/background/R0005023.jpg" alt="背景图片18">
+  <img class="lazy" data-src="./public/background/R0005029.jpg" alt="背景图片19">
+  <img class="lazy" data-src="./public/background/R0005034.jpg" alt="背景图片20">
+  <img class="lazy" data-src="./public/background/R0005037.jpg" alt="背景图片21">
+  <img class="lazy" data-src="./public/background/R0005069.jpg" alt="背景图片22">
+  <img class="lazy" data-src="./public/background/R0005090.jpg" alt="背景图片23">
+  <img class="lazy" data-src="./public/background/R0005123.jpg" alt="背景图片24">
+  <img class="lazy" data-src="./public/background/R0005176.jpg" alt="背景图片25">
+  <img class="lazy" data-src="./public/background/R0005181.jpg" alt="背景图片26">
+  <img class="lazy" data-src="./public/background/R0005287.jpg" alt="背景图片27">
+  <img class="lazy" data-src="./public/background/R0005424.jpg" alt="背景图片28">
+  <img class="lazy" data-src="./public/background/R0005534.jpg" alt="背景图片29">
+  <img class="lazy" data-src="./public/background/R0005570.jpg" alt="背景图片30">
+  <img class="lazy" data-src="./public/background/R0005639.jpg" alt="背景图片31">
+  <img class="lazy" data-src="./public/background/R0005696.jpg" alt="背景图片32">
+  <img class="lazy" data-src="./public/background/R0005755.jpg" alt="背景图片33">
+  <img class="lazy" data-src="./public/background/R0005763.jpg" alt="背景图片34">
+  <img class="lazy" data-src="./public/background/R0005768.jpg" alt="背景图片35">
+  <img class="lazy" data-src="./public/background/R0005792.jpg" alt="背景图片36">
+  <img class="lazy" data-src="./public/background/R0005819.jpg" alt="背景图片37">
+  <img class="lazy" data-src="./public/background/R0005822.jpg" alt="背景图片38">
+  <img class="lazy" data-src="./public/background/R0005894.jpg" alt="背景图片39">
+  <img class="lazy" data-src="./public/background/R0005925.jpg" alt="背景图片40">
+  <img class="lazy" data-src="./public/background/R0005990.jpg" alt="背景图片41">
+  <img class="lazy" data-src="./public/background/R0006131.jpg" alt="背景图片42">
+  <img class="lazy" data-src="./public/background/R0006147.jpg" alt="背景图片43">
+  <img class="lazy" data-src="./public/background/R0006167.jpg" alt="背景图片44">
+  <img class="lazy" data-src="./public/background/R0006241.jpg" alt="背景图片45">
+  <img class="lazy" data-src="./public/background/R0006250.jpg" alt="背景图片46">
+  <img class="lazy" data-src="./public/background/R0006276.jpg" alt="背景图片47">
+  <img class="lazy" data-src="./public/background/R0006333.jpg" alt="背景图片48">
+</div>
+
+    <!-- 模态视图 -->
+    <div id="myModal" class="modal">
+            <span class="close">&times;</span>
+            <span class="prev">&#10094;</span>
+            <span class="next">&#10095;</span>
+            <img class="modal-content" id="img01">
+            <a id="downloadLink" class="download-btn" href="#" target="_blank" download>下载原图</a>
+    </div>
+    
+    <footer>
+            <div class="social-links">
+                    <a href="https://weibo.com/5707972729" target="_blank">欢迎来看我的微博 🎉</a>
+                    <a href="https://space.bilibili.com/7684674" target="_blank">以及B站 📺</a>
+            </div>
+    </footer>
+    
+    <script>
+            // 幻灯片切换功能
+            function startSlideshow() {
+                    let currentIndex = 0;
+                    const slides = document.querySelectorAll('.background-slideshow img');
+                    const totalSlides = slides.length;
+    
+                    slides[currentIndex].classList.add('active');
+    
+                    setInterval(() => {
+                            slides[currentIndex].classList.remove('active');
+                            currentIndex = (currentIndex + 1) % totalSlides;
+                            slides[currentIndex].classList.add('active');
+                    }, 7000); // 切换间隔时间为7秒，其中2秒用于渐变，5秒显示图片
+            }
+    
+            startSlideshow();
+    
+            // 模态视图功能 - 使用与放映模式相同的加载逻辑
+            const modal = document.getElementById("myModal");
+            const span = document.getElementsByClassName("close")[0];
+            let currentImageIndex = 0;
+            let galleryImages = document.querySelectorAll('.gallery img');
+            
+            // 收集所有图片源（优先使用 data-src，如果没有则使用 src）- 与放映模式相同
+            const srcList = [...galleryImages].map(img => img.dataset?.src || img.src);
+            const cache = new Map();
+            
+            // 预加载函数 - 与放映模式相同
+            const preload = (i) => {
+                const src = srcList[i % srcList.length];
+                if (cache.has(src)) return;
+                const im = new Image();
+                im.src = src;
+                cache.set(src, im);
+            };
+    
+            galleryImages.forEach((img, index) => {
+                    img.onclick = function() {
+                            showModal(img, index);
+                    };
+            });
+    
+        async function showModal(img, index) {
+            currentImageIndex = index;
+            const modalImg = document.getElementById("img01");
+            const downloadLink = document.getElementById("downloadLink");
+            
+            // 获取图片源（优先使用 data-src）
+            const currentSrc = img.dataset?.src || img.src;
+            
+            // 预加载当前图片
+            preload(index);
+            const imgObj = cache.get(currentSrc);
+            
+            // 等待图片加载完成（如果已加载则立即显示，否则等待）
+            if (imgObj && imgObj.complete) {
+                modalImg.src = currentSrc;
+            } else if (imgObj) {
+                await new Promise((resolve) => {
+                    imgObj.onload = resolve;
+                    imgObj.onerror = resolve; // 即使加载失败也继续
+                });
+                modalImg.src = currentSrc;
+            } else {
+                modalImg.src = currentSrc;
+            }
+            
+            const highResSrc = currentSrc.replace('/background/', '/gallery/');
+            modal.style.display = "flex";
+            downloadLink.href = highResSrc;
+            
+            // 预加载前后各5张图片
+            for (let i = index - 5; i <= index + 5; i++) {
+                if (i >= 0 && i < srcList.length) {
+                    preload(i);
+                }
+            }
+        }
+        
+        async function updateModalImage() {
+            const modalImg = document.getElementById("img01");
+            const downloadLink = document.getElementById("downloadLink");
+            const currentSrc = srcList[currentImageIndex];
+            
+            // 预加载当前图片
+            preload(currentImageIndex);
+            const imgObj = cache.get(currentSrc);
+            
+            // 等待图片加载完成
+            if (imgObj && imgObj.complete) {
+                modalImg.src = currentSrc;
+            } else if (imgObj) {
+                await new Promise((resolve) => {
+                    imgObj.onload = resolve;
+                    imgObj.onerror = resolve;
+                });
+                modalImg.src = currentSrc;
+            } else {
+                modalImg.src = currentSrc;
+            }
+            
+            const highResSrc = currentSrc.replace('/background/', '/gallery/');
+            downloadLink.href = highResSrc;
+            
+            // 预加载前后各3张图片（按需加载）
+            for (let i = currentImageIndex - 3; i <= currentImageIndex + 3; i++) {
+                const idx = (i + srcList.length) % srcList.length;
+                preload(idx);
+            }
+        }
+            document.querySelector('.prev').onclick = async () => {
+                    currentImageIndex = (currentImageIndex - 1 + srcList.length) % srcList.length;
+                    await updateModalImage();
+            };
+    
+            document.querySelector('.next').onclick = async () => {
+                    currentImageIndex = (currentImageIndex + 1) % srcList.length;
+                    await updateModalImage();
+            };
+    
+            span.onclick = function() {
+                    modal.style.display = "none";
+            };
+    
+            window.onclick = function(event) {
+                    if (event.target === modal) {
+                            modal.style.display = "none";
+                    }
+            };
+        document.addEventListener("DOMContentLoaded", function() {
+            const lazyImages = document.querySelectorAll('img.lazy');
+        
+            const lazyLoad = function(entries, observer) {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        let img = entry.target;
+                        img.src = img.dataset.src;
+                        img.onload = () => {
+                            img.classList.add('loaded');
+                        }
+                        observer.unobserve(img);
+                    }
+                });
+            }
+        
+            const observer = new IntersectionObserver(lazyLoad);
+        
+            lazyImages.forEach(img => {
+                observer.observe(img);
+            });
+        });
+    </script>
+    <!-- ========== 放映模式 MOD BEGIN (async-decode fixed) ========== -->
+    <style>
+    /* 按钮 */
+    .slideshow-toggle{
+        position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
+        padding:10px 24px;font-size:16px;border:2px solid #fff;border-radius:20px;
+        background:rgba(0,0,0,.3);color:#fff;backdrop-filter:blur(10px);
+        cursor:pointer;z-index:1200;transition:background .3s,color .3s;
+    }
+    .slideshow-toggle:hover{background:rgba(255,255,255,.25);}
+    
+    /* 模态整体：纯黑背景 + 淡入淡出 */
+    .slideshow-modal{
+        position:fixed;inset:0;z-index:4000;overflow:hidden;
+        background:#000;opacity:0;visibility:hidden;pointer-events:none;
+        transition:opacity .4s ease;
+    }
+    .slideshow-modal.open{
+        opacity:1;visibility:visible;pointer-events:auto;
+    }
+    
+    /* 高斯模糊背景：双层交叉淡切 */
+    .slideshow-bg{
+        position:absolute;inset:0;background-size:cover;background-position:center;
+        filter:blur(30px);opacity:0;transition:opacity .75s ease-in-out;
+    }
+    .slideshow-bg.active{opacity:1;}
+    
+    /* 主图 */
+    .slide-img{
+        position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+        max-width:90%;max-height:90%;object-fit:contain;border-radius:12px;
+        box-shadow:0 0 25px rgba(0,0,0,.35);opacity:0;transition:opacity .75s ease-in-out;
+    }
+    .slide-img.active{opacity:1;}
+    </style>
+    
+    <script>
+    (function(){
+        /* ——— 插入按钮 ——— */
+        const btn=document.createElement('button');
+        btn.className='slideshow-toggle';btn.textContent='放映模式';
+        document.body.appendChild(btn);
+    
+        /* ——— 插入模态（双背景层） ——— */
+        const modal=document.createElement('div');modal.className='slideshow-modal';
+        modal.innerHTML=`<div id="bgA" class="slideshow-bg"></div>
+                                            <div id="bgB" class="slideshow-bg"></div>
+                                            <img id="imgA" class="slide-img" alt="">
+                                            <img id="imgB" class="slide-img" alt="">`;
+        document.body.appendChild(modal);
+    
+        /* ——— 收集数据 ——— */
+        const srcList=[...document.querySelectorAll('#gallery img')].map(i=>i.dataset?.src||i.src);
+        const cache=new Map();
+        const preload=i=>{
+                const src=srcList[i%srcList.length];
+                if(cache.has(src)) return;
+                const im=new Image(); im.src=src;
+                cache.set(src,im);
+        };
+    
+        /* ——— DOM 引用 / 状态 ——— */
+        const bgA=document.getElementById('bgA'), bgB=document.getElementById('bgB');
+        const imA=document.getElementById('imgA'), imB=document.getElementById('imgB');
+        let cur=0,useA=true,useBgA=true,timer;
+    
+        /* ——— 异步切换函数：确保 decode 完成后再淡入 ——— */
+        const crossfade = async nextIdx => {
+            const newSrc = srcList[nextIdx];
+            const newImg  = useA ? imB : imA;
+            const oldImg  = useA ? imA : imB;
+            const newBg   = useBgA ? bgB : bgA;
+            const oldBg   = useBgA ? bgA : bgB;
+    
+            // 设置 src & 预解码
+            newImg.src = newSrc;
+            await (cache.get(newSrc)?.decode?.() ?? Promise.resolve());
+    
+            // 背景同理
+            newBg.style.backgroundImage = `url('${newSrc}')`;
+    
+            // 交叉淡入淡出
+            newImg.classList.add('active'); oldImg.classList.remove('active');
+            newBg.classList.add('active');  oldBg.classList.remove('active');
+    
+            cur = nextIdx;
+            useA = !useA; useBgA = !useBgA;
+            preload(cur+1);                 // 继续预加载下一张
+        };
+    
+        /* ——— 播放器节奏 ——— */
+        const tick = async () => {
+            const next=(cur+1)%srcList.length;
+            const imgObj = cache.get(srcList[next]);
+            if(imgObj && imgObj.complete){
+                    await crossfade(next);
+                    timer=setTimeout(tick,5000);
+            }else{
+                    timer=setTimeout(tick,300); // 等待资源完成
+            }
+        };
+    
+        /* ——— 打开 / 关闭模态 ——— */
+        const open = () => {
+            if(!srcList.length) return;
+            preload(0);
+            const first = cache.get(srcList[0]);
+            const start = async () => {
+                await crossfade(0);
+                modal.classList.add('open');
+                document.body.style.overflow='hidden';
+                timer=setTimeout(tick,5000);
+            };
+            first.complete ? start() : first.decode().then(start);
+        };
+        const close = () => {
+            modal.classList.remove('open');
+            document.body.style.overflow='auto';
+            clearTimeout(timer);
+        };
+    
+        /* ——— 事件绑定 ——— */
+        btn.addEventListener('click',open);
+        modal.addEventListener('click',close);
+    })();
+    </script>
+    <!-- ========== 放映模式 MOD END (async-decode fixed) ========== -->
+    </body>
+    </html>
+    
