@@ -865,128 +865,290 @@
                        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
         const iosShareHintKey = 'gr-canvas-ios-share-hint-shown';
 
-        // ── 导出（优化 iOS 保存体验）──
-        downloadBtn.addEventListener('click', () => {
-            const camW = maskImg.width;
-            const camH = maskImg.height;
+        /** sRGB 字节 → 线性光（导出模糊用，避免在 sRGB 数值上直接卷积导致暗部假带） */
+        function srgbByteToLinear(c) {
+            c /= 255;
+            return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+        }
 
-            const offscreen = document.createElement('canvas');
-            const octx = offscreen.getContext('2d');
-            const suffix = ['sticker', 'whitebg', 'blackbg', 'photobg', 'photoblurtile'][backgroundMode];
+        function linearToSrgbByte(lin) {
+            lin = Math.max(0, Math.min(1, lin));
+            const s = lin <= 0.0031308 ? 12.92 * lin : 1.055 * Math.pow(lin, 1 / 2.4) - 0.055;
+            return s * 255;
+        }
 
-            if (backgroundMode === 0) {
-                // ─ 无背景：3:2 输出，透明底 ─
-                const bgH = camH * 5 / 3;
-                const bgW = bgH * 3 / 2;
-                const cx = (bgW - camW) / 2;
-                const cy = (bgH - camH) / 2;
-                offscreen.width = bgW;
-                offscreen.height = bgH;
-                drawCameraToOffscreen(octx, cx, cy, camW, camH);
-
-            } else if (backgroundMode === 1 || backgroundMode === 2 || backgroundMode === 4) {
-                // ─ 1/2：白或黑顶区；4：顶区为「当前图 2x cover + 高斯模糊」──
-                // 均为 3:4：上半相机 + 下半整图 cover
-                const outW = camH * 3;
-                const outH = camH * 4;
-                const topH = outH / 2;
-                const cx = (outW - camW) / 2;
-                const cy = (topH - camH) / 2;
-                offscreen.width = outW;
-                offscreen.height = outH;
-
-                if (backgroundMode === 4) {
-                    if (mainImg) {
-                        const { exportBlur: blurPx } = getMode4BlurPx(camH);
-                        const pad = Math.ceil(blurPx * 3);
-                        const bw = outW + 2 * pad;
-                        const bh = topH + 2 * pad;
-                        const big = document.createElement('canvas');
-                        big.width = bw;
-                        big.height = bh;
-                        drawImageCover2xZoom(big.getContext('2d'), mainImg, 0, 0, bw, bh);
-                        const blurCanvas = document.createElement('canvas');
-                        blurCanvas.width = bw;
-                        blurCanvas.height = bh;
-                        const bx = blurCanvas.getContext('2d');
-                        bx.filter = `blur(${blurPx}px)`;
-                        bx.drawImage(big, 0, 0);
-                        bx.filter = 'none';
-                        octx.drawImage(blurCanvas, pad, pad, outW, topH, 0, 0, outW, topH);
-                    } else {
-                        octx.fillStyle = '#1a1a1a';
-                        octx.fillRect(0, 0, outW, topH);
-                    }
-                } else {
-                    octx.fillStyle = backgroundMode === 1 ? '#D9D9D9' : '#262626';
-                    octx.fillRect(0, 0, outW, topH);
+        function boxBlurHLinear(fin, fout, w, h, rad) {
+            const r = Math.max(0, Math.min(rad | 0, w - 1));
+            if (r === 0) {
+                fout.set(fin);
+                return;
+            }
+            for (let y = 0; y < h; y++) {
+                const row = y * w * 3;
+                const pr = new Float32Array(w + 1);
+                const pg = new Float32Array(w + 1);
+                const pb = new Float32Array(w + 1);
+                let sr = 0, sg = 0, sb = 0;
+                for (let x = 0; x < w; x++) {
+                    const i = row + x * 3;
+                    sr += fin[i];
+                    sg += fin[i + 1];
+                    sb += fin[i + 2];
+                    pr[x + 1] = sr;
+                    pg[x + 1] = sg;
+                    pb[x + 1] = sb;
                 }
-                drawCameraToOffscreen(octx, cx, cy, camW, camH);
-
-                if (mainImg) {
-                    drawCoverToOffscreen(octx, mainImg, 0, topH, outW, topH);
+                for (let x = 0; x < w; x++) {
+                    const x0 = Math.max(0, x - r);
+                    const x1 = Math.min(w - 1, x + r);
+                    const cnt = x1 - x0 + 1;
+                    const o = row + x * 3;
+                    fout[o] = (pr[x1 + 1] - pr[x0]) / cnt;
+                    fout[o + 1] = (pg[x1 + 1] - pg[x0]) / cnt;
+                    fout[o + 2] = (pb[x1 + 1] - pb[x0]) / cnt;
                 }
+            }
+        }
 
-            } else if (backgroundMode === 3) {
-                // ─ 图片背景：3:4 输出，原图居中裁切做背景，相机居中 ─
-                const outW = camH * 3;
-                const outH = camH * 4;
-                const cx = (outW - camW) / 2;
-                const cy = (outH - camH) / 2;
-                offscreen.width = outW;
-                offscreen.height = outH;
-
-                if (mainImg) {
-                    drawCoverToOffscreen(octx, mainImg, 0, 0, outW, outH);
+        function boxBlurVLinear(fin, fout, w, h, rad) {
+            const r = Math.max(0, Math.min(rad | 0, h - 1));
+            if (r === 0) {
+                fout.set(fin);
+                return;
+            }
+            for (let x = 0; x < w; x++) {
+                const pr = new Float32Array(h + 1);
+                const pg = new Float32Array(h + 1);
+                const pb = new Float32Array(h + 1);
+                let sr = 0, sg = 0, sb = 0;
+                for (let y = 0; y < h; y++) {
+                    const i = y * w * 3 + x * 3;
+                    sr += fin[i];
+                    sg += fin[i + 1];
+                    sb += fin[i + 2];
+                    pr[y + 1] = sr;
+                    pg[y + 1] = sg;
+                    pb[y + 1] = sb;
                 }
-                drawCameraToOffscreen(octx, cx, cy, camW, camH);
+                for (let y = 0; y < h; y++) {
+                    const y0 = Math.max(0, y - r);
+                    const y1 = Math.min(h - 1, y + r);
+                    const cnt = y1 - y0 + 1;
+                    const o = y * w * 3 + x * 3;
+                    fout[o] = (pr[y1 + 1] - pr[y0]) / cnt;
+                    fout[o + 1] = (pg[y1 + 1] - pg[y0]) / cnt;
+                    fout[o + 2] = (pb[y1 + 1] - pb[y0]) / cnt;
+                }
+            }
+        }
+
+        /**
+         * 模式 4 导出顶区模糊：全浏览器统一路径。在线性 RGB 上做 O(n) 盒式卷积（3 轮 H+V 近似 Gaussian），
+         * 再 γ 回 sRGB 并抖动量化到 8bit，减轻高位图上的硬色阶。
+         */
+        function blurExportMode4TopStrip(srcCanvas, blurPx) {
+            const w = srcCanvas.width;
+            const h = srcCanvas.height;
+            const maxWork = 1920;
+            const sc = Math.min(1, maxWork / Math.max(w, h));
+            const sw = Math.max(1, Math.round(w * sc));
+            const sh = Math.max(1, Math.round(h * sc));
+
+            const sCan = document.createElement('canvas');
+            sCan.width = sw;
+            sCan.height = sh;
+            const sctx = sCan.getContext('2d', { alpha: true });
+            sctx.imageSmoothingEnabled = true;
+            if (typeof sctx.imageSmoothingQuality === 'string') sctx.imageSmoothingQuality = 'high';
+            sctx.drawImage(srcCanvas, 0, 0, w, h, 0, 0, sw, sh);
+
+            const img = sctx.getImageData(0, 0, sw, sh);
+            const rd = img.data;
+            const n = sw * sh;
+            const bufA = new Float32Array(n * 3);
+            const bufB = new Float32Array(n * 3);
+            for (let i = 0, j = 0; i < rd.length; i += 4, j += 3) {
+                bufA[j] = srgbByteToLinear(rd[i]);
+                bufA[j + 1] = srgbByteToLinear(rd[i + 1]);
+                bufA[j + 2] = srgbByteToLinear(rd[i + 2]);
             }
 
-            const fileName = `${currentImgName}_${suffix}.jpg`;
+            let rad = Math.max(1, Math.round(blurPx * sc * 0.48));
+            rad = Math.min(rad, 96, Math.max(0, Math.floor(Math.min(sw, sh) / 2) - 1));
 
-            // 使用 toBlob 异步导出（比 toDataURL 更高效）
-            offscreen.toBlob(async (blob) => {
-                if (!blob) { showToast('导出失败，请重试'); return; }
+            let a = bufA;
+            let b = bufB;
+            for (let it = 0; it < 3; it++) {
+                boxBlurHLinear(a, b, sw, sh, rad);
+                boxBlurVLinear(b, a, sw, sh, rad);
+            }
 
-                const file = new File([blob], fileName, { type: 'image/jpeg' });
+            const dith = 0.75;
+            for (let i = 0, j = 0; i < rd.length; i += 4, j += 3) {
+                let rv = linearToSrgbByte(a[j]) + (Math.random() - 0.5) * dith;
+                let gv = linearToSrgbByte(a[j + 1]) + (Math.random() - 0.5) * dith;
+                let bv = linearToSrgbByte(a[j + 2]) + (Math.random() - 0.5) * dith;
+                rd[i] = Math.min(255, Math.max(0, Math.round(rv)));
+                rd[i + 1] = Math.min(255, Math.max(0, Math.round(gv)));
+                rd[i + 2] = Math.min(255, Math.max(0, Math.round(bv)));
+                rd[i + 3] = 255;
+            }
+            sctx.putImageData(img, 0, 0);
 
-                // iOS：优先使用 Web Share API（弹出原生分享面板，可直接"存储图像"）
-                if (isIOS && navigator.canShare && navigator.canShare({ files: [file] })) {
-                    // 首次使用时，先显示引导提示再弹出分享面板
-                    if (!localStorage.getItem(iosShareHintKey)) {
+            const out = document.createElement('canvas');
+            out.width = w;
+            out.height = h;
+            const ox = out.getContext('2d', { alpha: true });
+            ox.imageSmoothingEnabled = true;
+            if (typeof ox.imageSmoothingQuality === 'string') ox.imageSmoothingQuality = 'high';
+            ox.drawImage(sCan, 0, 0, sw, sh, 0, 0, w, h);
+            return out;
+        }
+
+        function clampExportCanvas(canvas, maxDim = 8192) {
+            const w = canvas.width;
+            const h = canvas.height;
+            const m = Math.max(w, h);
+            if (m <= maxDim) return canvas;
+            const s = maxDim / m;
+            const nw = Math.max(1, Math.round(w * s));
+            const nh = Math.max(1, Math.round(h * s));
+            const out = document.createElement('canvas');
+            out.width = nw;
+            out.height = nh;
+            const c = out.getContext('2d', { alpha: true });
+            c.imageSmoothingEnabled = true;
+            if (typeof c.imageSmoothingQuality === 'string') c.imageSmoothingQuality = 'high';
+            c.drawImage(canvas, 0, 0, w, h, 0, 0, nw, nh);
+            return out;
+        }
+
+        async function deliverDownload(blob, fileName) {
+            const safeName = fileName.replace(/[/\\?%*:|"<>]/g, '_');
+            const file = new File([blob], safeName, { type: 'image/png' });
+            let canShareFiles = false;
+            try {
+                canShareFiles = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+            } catch (e) {
+                canShareFiles = false;
+            }
+            if (canShareFiles) {
+                try {
+                    if (isIOS && !localStorage.getItem(iosShareHintKey)) {
                         localStorage.setItem(iosShareHintKey, '1');
                         showToast('点击分享面板中的「存储图像」保存到相册', 3500);
-                        // 稍等片刻让用户看到提示
                         await new Promise(r => setTimeout(r, 1200));
                     }
-                    try {
-                        await navigator.share({
-                            files: [file],
-                            title: 'GR IV Cover'
-                        });
-                        showToast('已保存', 1500);
-                    } catch (err) {
-                        // 用户取消分享不算错误
-                        if (err.name !== 'AbortError') {
-                            fallbackDownload(blob, fileName);
-                        }
-                    }
-                } else {
-                    // 非 iOS 或不支持 Share API：使用 Blob URL 下载
-                    fallbackDownload(blob, fileName);
+                    await navigator.share({ files: [file], title: 'GR IV Cover' });
+                    showToast('已保存', 1500);
+                    return;
+                } catch (err) {
+                    if (err.name === 'AbortError') return;
                 }
-            }, 'image/jpeg', 0.92);
+            }
+            fallbackDownload(blob, safeName);
+        }
+
+        // ── 导出：PNG（模式 0 透明底）；模式 4 顶区为线性域盒式模糊 + 抖动量化；Android 优先系统分享 ──
+        downloadBtn.addEventListener('click', () => {
+            void (async () => {
+                try {
+                    const camW = maskImg.width;
+                    const camH = maskImg.height;
+
+                    const offscreen = document.createElement('canvas');
+                    const octx = offscreen.getContext('2d', { alpha: true });
+                    const suffix = ['sticker', 'whitebg', 'blackbg', 'photobg', 'photoblurtile'][backgroundMode];
+
+                    if (backgroundMode === 0) {
+                        const bgH = camH * 5 / 3;
+                        const bgW = bgH * 3 / 2;
+                        const cx = (bgW - camW) / 2;
+                        const cy = (bgH - camH) / 2;
+                        offscreen.width = bgW;
+                        offscreen.height = bgH;
+                        drawCameraToOffscreen(octx, cx, cy, camW, camH);
+
+                    } else if (backgroundMode === 1 || backgroundMode === 2 || backgroundMode === 4) {
+                        const outW = camH * 3;
+                        const outH = camH * 4;
+                        const topH = outH / 2;
+                        const cx = (outW - camW) / 2;
+                        const cy = (topH - camH) / 2;
+                        offscreen.width = outW;
+                        offscreen.height = outH;
+
+                        if (backgroundMode === 4) {
+                            if (mainImg) {
+                                const { exportBlur: blurPx } = getMode4BlurPx(camH);
+                                const pad = Math.ceil(blurPx * 3);
+                                const bw = outW + 2 * pad;
+                                const bh = topH + 2 * pad;
+                                const big = document.createElement('canvas');
+                                big.width = bw;
+                                big.height = bh;
+                                const bctx = big.getContext('2d', { alpha: true });
+                                drawImageCover2xZoom(bctx, mainImg, 0, 0, bw, bh);
+
+                                const blurCanvas = blurExportMode4TopStrip(big, blurPx);
+                                octx.drawImage(blurCanvas, pad, pad, outW, topH, 0, 0, outW, topH);
+                            } else {
+                                octx.fillStyle = '#1a1a1a';
+                                octx.fillRect(0, 0, outW, topH);
+                            }
+                        } else {
+                            octx.fillStyle = backgroundMode === 1 ? '#D9D9D9' : '#262626';
+                            octx.fillRect(0, 0, outW, topH);
+                        }
+                        drawCameraToOffscreen(octx, cx, cy, camW, camH);
+
+                        if (mainImg) {
+                            drawCoverToOffscreen(octx, mainImg, 0, topH, outW, topH);
+                        }
+
+                    } else if (backgroundMode === 3) {
+                        const outW = camH * 3;
+                        const outH = camH * 4;
+                        const cx = (outW - camW) / 2;
+                        const cy = (outH - camH) / 2;
+                        offscreen.width = outW;
+                        offscreen.height = outH;
+
+                        if (mainImg) {
+                            drawCoverToOffscreen(octx, mainImg, 0, 0, outW, outH);
+                        }
+                        drawCameraToOffscreen(octx, cx, cy, camW, camH);
+                    }
+
+                    const fileName = `${currentImgName}_${suffix}.png`;
+                    const exportCanvas = clampExportCanvas(offscreen, 8192);
+
+                    exportCanvas.toBlob(async (blob) => {
+                        if (!blob) {
+                            showToast('导出失败（画布过大或内存不足），可换用较小原图或在电脑浏览器重试');
+                            return;
+                        }
+                        await deliverDownload(blob, fileName);
+                    }, 'image/png');
+                } catch (err) {
+                    console.error(err);
+                    showToast('导出失败：' + (err && err.message ? err.message : '未知错误'));
+                }
+            })();
         });
 
-        // ── 传统下载（非 iOS 或降级方案）──
+        // ── 传统下载（Android 等：a 标签需挂到 DOM）──
         function fallbackDownload(blob, fileName) {
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.download = fileName;
             link.href = url;
+            link.rel = 'noopener';
+            link.style.display = 'none';
+            document.body.appendChild(link);
             link.click();
-            // 延迟释放 URL，避免下载中断
-            setTimeout(() => URL.revokeObjectURL(url), 10000);
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 15000);
         }
 
         updateBackgroundUI();
