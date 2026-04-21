@@ -289,7 +289,7 @@
         /** 预览模式 4 与导出一致的「约 2×」放大（cover 上再 scale，不变形） */
         const PREVIEW_PHOTO_ZOOM = 2;
         /** 模式 4 虚化：相对遮罩高度；导出与预览由同一基准换算，预览按「整图导出高度 vs 视口」缩放到屏幕 px */
-        const MODE4_BLUR_FRAC_CAMH = 0.056;
+        const MODE4_BLUR_FRAC_CAMH = 0.1;
 
         function getMode4BlurPx(camHOverride) {
             const camH = camHOverride || maskImg.naturalHeight || maskImg.height || 1040;

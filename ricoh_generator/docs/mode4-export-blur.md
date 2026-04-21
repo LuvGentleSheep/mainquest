@@ -37,10 +37,11 @@
 
 ## 4. 与预览的半径对齐
 
-`getMode4BlurPx(camHOverride)`（约 `MODE4_BLUR_FRAC_CAMH = 0.056`）：
+`getMode4BlurPx(camHOverride)`（`MODE4_BLUR_FRAC_CAMH`，当前代码里为 **0.1**）：
 
-- **`exportBlur`**：`max(12, round(camH * 0.056))`，导出顶条合成用 `blurPx`。
+- **`exportBlur`**：`max(12, round(camH * MODE4_BLUR_FRAC_CAMH))`，导出顶条合成用 `blurPx`。
 - **`previewBlur`**：按导出整图高度与视口高度比例，把同一物理语义缩放到屏幕 CSS `px`。
+- 若将常数提到 **0.2** 等很大值，预览会明显更糊；导出侧盒模糊半径另有 **`rad` 上限 96**，过强的 `exportBlur` 可能在导出上「触顶」，需同步放宽该上限或略增大 `blurPx * sc * 0.48` 里的比例才继续变虚。
 
 导出函数 `blurExportMode4TopStrip(big, blurPx)` 接收的即为 **`exportBlur`**（与遮罩高度 `camH` 绑定）。
 
@@ -95,6 +96,7 @@ octx.drawImage(blurCanvas, pad, pad, outW, topH, 0, 0, outW, topH);
 
 | 符号 / 位置 | 含义 | 调大效果 | 调小效果 |
 |-------------|------|----------|----------|
+| **`MODE4_BLUR_FRAC_CAMH`**（主控） | 相对遮罩高度换算 `exportBlur`，预览与导出共用 | **整体虚化更强** | 更实 |
 | `maxWork`（默认 1920） | 工作画布长边上界 | 更细、更慢、更占内存 | 更快、略糊 |
 | `blurPx * sc * 0.48` 中的 `0.48` | 导出核半径与 CSS `blur` 的经验比例 | 更虚 | 更实 |
 | `rad` 上限 `96` | 核半径硬顶 | — | 极大图时虚化上限 |
