@@ -155,13 +155,29 @@
             position: fixed;
             inset: 0;
             z-index: 0;
+            overflow: hidden;
             background-color: var(--bg-color);
-            background-position: center;
-            background-repeat: no-repeat;
-            background-size: cover;
             transform: translateY(100%);
             transition: transform 0.7s cubic-bezier(0.33, 1, 0.68, 1),
                         opacity 0.5s ease;
+        }
+
+        /* 照片背景放在内层：始终 cover + 均匀 scale，避免 200%×200% 随视口比例拉伸；模糊不外溢裁切 */
+        .bg-sheet {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            background-position: center center;
+            background-repeat: no-repeat;
+            background-size: cover;
+            transform-origin: center center;
+            transform: scale(1);
+            filter: none;
+            display: none;
+            pointer-events: none;
+            transition: transform 0.7s cubic-bezier(0.33, 1, 0.68, 1),
+                        filter 0.7s cubic-bezier(0.33, 1, 0.68, 1);
         }
 
         .bg-visible {
@@ -169,6 +185,10 @@
         }
 
         .bg-no-transition {
+            transition: none !important;
+        }
+
+        .bg-no-transition .bg-sheet {
             transition: none !important;
         }
 
@@ -210,9 +230,9 @@
     <div class="container">
         <h1>RICOH GR IV Cover</h1>
 
-        <!-- 全屏背景层：底层 + 覆盖层（新背景从下滑入覆盖旧背景） -->
-        <div id="bg-layer"></div>
-        <div id="bg-layer-next"></div>
+        <!-- 全屏背景层：底层 + 覆盖层（新背景从下滑入覆盖旧背景）；照片在内层 .bg-sheet 上缩放+模糊 -->
+        <div id="bg-layer"><div class="bg-sheet" aria-hidden="true"></div></div>
+        <div id="bg-layer-next"><div class="bg-sheet" aria-hidden="true"></div></div>
 
         <!-- 相机层：只负责显示相机画面，居中缩放 -->
         <div id="camera-layer">
@@ -258,10 +278,30 @@
         let currentImgDataUrl = null;
         let currentImgStaticUrl = null;  // 扁平化后的静态 SDR JPEG（用于 background-image）
         let currentImgName = 'image'; // 原始文件名（不含扩展名）
-        let backgroundMode = 0; // 0: 无; 1: 白 #D9D9D9; 2: 黑 #262626; 3: 当前图做背景
+        // 0: 无; 1: 白; 2: 黑; 3: 全屏当前图; 4: 顶半屏「当前图 2x 裁切 + 模糊」+ 底半屏 cover（导出同 1/2 的 3:4）
+        let backgroundMode = 0;
         let previousMode = 0;
         let bgTransitionId = 0; // 防止快速点击时旧 transitionend 干扰
         const PREVIEW_SCALE = 0.5;
+        const BG_TRANS_MS = 700;
+        const BG_TRANS_EASE = 'cubic-bezier(0.33, 1, 0.68, 1)';
+        const BG_SHEET_TRANS = `transform ${BG_TRANS_MS}ms ${BG_TRANS_EASE}, filter ${BG_TRANS_MS}ms ${BG_TRANS_EASE}`;
+        /** 预览模式 4 与导出一致的「约 2×」放大（cover 上再 scale，不变形） */
+        const PREVIEW_PHOTO_ZOOM = 2;
+        /** 模式 4 虚化：相对遮罩高度；导出与预览由同一基准换算，预览按「整图导出高度 vs 视口」缩放到屏幕 px */
+        const MODE4_BLUR_FRAC_CAMH = 0.056;
+
+        function getMode4BlurPx(camHOverride) {
+            const camH = camHOverride || maskImg.naturalHeight || maskImg.height || 1040;
+            const exportBlur = Math.max(12, Math.round(camH * MODE4_BLUR_FRAC_CAMH));
+            const outH = camH * 4;
+            const vh = Math.max(320, window.innerHeight);
+            const previewBlur = exportBlur * (vh / outH);
+            return {
+                exportBlur,
+                previewBlur: Math.max(2, Math.round(previewBlur * 100) / 100)
+            };
+        }
 
         // 主图淡入动画
         let fadeStart = null;
@@ -380,8 +420,8 @@
                     // 首次加载照片后展开工具栏
                     revealToolbarButtons();
                     // 如果当前是背景图模式，渐变切换背景
-                    if (backgroundMode === 3) {
-                        crossfadeBgPhoto(currentImgStaticUrl);
+                    if (backgroundMode === 3 || backgroundMode === 4) {
+                        crossfadeBgPhoto();
                     }
                 };
                 img.src = event.target.result;
@@ -389,14 +429,103 @@
             reader.readAsDataURL(file);
         });
 
-        // 背景按钮：无 → 白 → 黑 → 当前图 → 无 ...
+        // 背景按钮：无 → 白 → 黑 → 全屏图 → 顶模糊+底图 → 无 ...
         backgroundBtn.addEventListener('click', () => {
             if (bgAnimating) return;          // 动画进行中，忽略点击
             previousMode = backgroundMode;
-            backgroundMode = (backgroundMode + 1) % 4;
+            backgroundMode = (backgroundMode + 1) % 5;
             updateBackgroundUI();
+            if (previousMode === 3 && backgroundMode === 4) {
+                transitionBgMode3To4();
+                return;
+            }
             updateBgLayer();
         });
+
+        function getSheet(layer) {
+            return layer ? layer.querySelector('.bg-sheet') : null;
+        }
+
+        function resetSheet(layer) {
+            const sh = getSheet(layer);
+            if (!sh) return;
+            sh.style.display = 'none';
+            sh.style.backgroundImage = '';
+            sh.style.backgroundSize = '';
+            sh.style.backgroundPosition = '';
+            sh.style.transform = '';
+            sh.style.filter = '';
+            sh.style.transition = '';
+        }
+
+        function applyPhotoToSheet(sheet, mode) {
+            if (!sheet || !currentImgStaticUrl) return;
+            sheet.style.display = 'block';
+            sheet.style.backgroundImage = `url(${currentImgStaticUrl})`;
+            sheet.style.backgroundSize = 'cover';
+            sheet.style.backgroundPosition = 'center center';
+            if (mode === 3) {
+                sheet.style.transform = 'scale(1)';
+                sheet.style.filter = 'blur(0px)';
+            } else if (mode === 4) {
+                sheet.style.transform = `scale(${PREVIEW_PHOTO_ZOOM})`;
+                const { previewBlur } = getMode4BlurPx();
+                sheet.style.filter = `blur(${previewBlur}px)`;
+            }
+        }
+
+        // 模式 3 → 4：同一张图在内层 .bg-sheet 上从 scale(1) 同步放大 + blur（不变形、可插值）
+        function transitionBgMode3To4() {
+            lockBgBtn();
+            bgTransitionId++;
+            const myId = bgTransitionId;
+            cameraLayer.classList.add('with-bg');
+
+            const sheet = getSheet(bgLayer);
+            if (!currentImgStaticUrl || !sheet) {
+                setLayerContent(bgLayer, 4);
+                unlockBgBtn();
+                return;
+            }
+
+            setLayerContent(bgLayer, 3);
+            bgLayer.classList.remove('bg-no-transition');
+            sheet.classList.remove('bg-no-transition');
+
+            sheet.style.transform = 'scale(1)';
+            sheet.style.filter = 'blur(0px)';
+            void sheet.offsetHeight;
+
+            sheet.style.transition = BG_SHEET_TRANS;
+
+            const { previewBlur: targetBlurPx } = getMode4BlurPx();
+
+            let settled = false;
+            const finish = () => {
+                if (settled || myId !== bgTransitionId) return;
+                settled = true;
+                sheet.removeEventListener('transitionend', onEnd);
+                sheet.classList.add('bg-no-transition');
+                sheet.style.transition = '';
+                setLayerContent(bgLayer, 4);
+                requestAnimationFrame(() => sheet.classList.remove('bg-no-transition'));
+                unlockBgBtn();
+            };
+            const onEnd = (e) => {
+                if (myId !== bgTransitionId) return;
+                if (e.propertyName === 'transform' || e.propertyName === 'filter') finish();
+            };
+            sheet.addEventListener('transitionend', onEnd);
+            setTimeout(finish, BG_TRANS_MS + 80);
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    if (myId !== bgTransitionId) return;
+                    sheet.style.transform = `scale(${PREVIEW_PHOTO_ZOOM})`;
+                    sheet.style.filter = `blur(${targetBlurPx}px)`;
+                });
+            });
+        }
 
         function updateBackgroundUI() {
             const s = 'width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"';
@@ -412,51 +541,78 @@
                 // 黑色填充方框
                 backgroundBtn.innerHTML = `<svg ${s}><rect x="3" y="3" width="18" height="18" rx="2" fill="#262626"/></svg>`;
                 backgroundBtn.title = '背景：黑 #262626';
-            } else {
+            } else if (backgroundMode === 3) {
                 // 图片图标：山 + 太阳
                 backgroundBtn.innerHTML = `<svg ${s} stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
                 backgroundBtn.title = '背景：当前图';
+            } else {
+                // 顶模糊 + 底图：模糊圆 + 分层示意
+                backgroundBtn.innerHTML = `<svg ${s} stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="9" r="3.5" opacity="0.35"/><path d="M4 16h16" opacity="0.5"/></svg>`;
+                backgroundBtn.title = '背景：顶区模糊照片 + 底区整图';
             }
         }
 
-        // 设置某一层的背景内容
+        function clearBgLayerFx(layer) {
+            layer.style.filter = '';
+            layer.style.backgroundSize = '';
+            layer.style.backgroundPosition = '';
+            layer.style.backgroundImage = '';
+        }
+
+        // 设置某一层的背景内容（mode 0 仅用于少数收尾逻辑；照片在 .bg-sheet 上）
         function setLayerContent(layer, mode) {
+            const sh = getSheet(layer);
+            if (mode === 0) {
+                clearBgLayerFx(layer);
+                layer.style.backgroundColor = 'transparent';
+                layer.style.backgroundImage = 'none';
+                resetSheet(layer);
+                return;
+            }
             if (mode === 1) {
+                clearBgLayerFx(layer);
+                resetSheet(layer);
                 layer.style.backgroundColor = '#D9D9D9';
-                layer.style.backgroundImage = 'none';
             } else if (mode === 2) {
+                clearBgLayerFx(layer);
+                resetSheet(layer);
                 layer.style.backgroundColor = '#262626';
-                layer.style.backgroundImage = 'none';
             } else if (mode === 3) {
+                clearBgLayerFx(layer);
                 layer.style.backgroundColor = '#000';
-                if (currentImgStaticUrl) {
-                    layer.style.backgroundImage = `url(${currentImgStaticUrl})`;
-                }
+                if (currentImgStaticUrl && sh) applyPhotoToSheet(sh, 3);
+                else resetSheet(layer);
+            } else if (mode === 4) {
+                clearBgLayerFx(layer);
+                layer.style.backgroundColor = '#000';
+                if (currentImgStaticUrl && sh) applyPhotoToSheet(sh, 4);
+                else resetSheet(layer);
             }
         }
 
-        // 照片切换时背景渐变（mode 3 专用）
-        function crossfadeBgPhoto(staticUrl) {
-            // bgLayerNext 定位到可见位置（无动画），但透明
+        // 照片切换时背景渐变（mode 3 / 4）
+        function crossfadeBgPhoto() {
+            if (!currentImgStaticUrl) return;
+            const mode = backgroundMode;
             bgLayerNext.classList.add('bg-no-transition');
             bgLayerNext.classList.add('bg-visible');
-            bgLayerNext.style.backgroundColor = '#000';
-            bgLayerNext.style.backgroundImage = `url(${staticUrl})`;
+            setLayerContent(bgLayerNext, mode);
             bgLayerNext.style.opacity = '0';
             void bgLayerNext.offsetHeight;
             bgLayerNext.classList.remove('bg-no-transition');
-            // 渐变显现
             bgLayerNext.style.opacity = '1';
-            // 渐变完成后转移到 bgLayer
             const handler = (e) => {
                 if (e.propertyName !== 'opacity') return;
                 bgLayerNext.removeEventListener('transitionend', handler);
-                bgLayer.style.backgroundImage = `url(${staticUrl})`;
-                // 瞬间重置 bgLayerNext
+                if (backgroundMode === 3 || backgroundMode === 4) {
+                    setLayerContent(bgLayer, backgroundMode);
+                }
                 bgLayerNext.classList.add('bg-no-transition');
                 bgLayerNext.classList.remove('bg-visible');
                 bgLayerNext.style.opacity = '';
-                bgLayerNext.style.backgroundImage = 'none';
+                bgLayerNext.style.backgroundColor = 'transparent';
+                clearBgLayerFx(bgLayerNext);
+                resetSheet(bgLayerNext);
                 void bgLayerNext.offsetHeight;
                 bgLayerNext.classList.remove('bg-no-transition');
             };
@@ -469,6 +625,8 @@
             layer.classList.remove('bg-visible');
             layer.style.backgroundColor = 'transparent';
             layer.style.backgroundImage = 'none';
+            clearBgLayerFx(layer);
+            resetSheet(layer);
             requestAnimationFrame(() => layer.classList.remove('bg-no-transition'));
         }
 
@@ -501,9 +659,10 @@
             }
 
             if (backgroundMode === 0) {
-                // → 无背景：两层都清掉，bgLayer 向下滑出
+                // → 无背景：两层都清掉，bgLayer 向下滑出（与模式 3→0 相同；清除内联 transition 以免盖掉 transform）
                 resetLayer(bgLayerNext);
                 bgLayer.classList.remove('bg-no-transition');
+                bgLayer.style.transition = '';
                 bgLayer.classList.remove('bg-visible');
                 const handler = (e) => {
                     if (e.propertyName !== 'transform') return;
@@ -511,6 +670,8 @@
                     if (myId !== bgTransitionId) return;
                     bgLayer.style.backgroundColor = 'transparent';
                     bgLayer.style.backgroundImage = 'none';
+                    clearBgLayerFx(bgLayer);
+                    resetSheet(bgLayer);
                     unlockBgBtn();
                 };
                 bgLayer.addEventListener('transitionend', handler);
@@ -636,6 +797,29 @@
             octx.drawImage(img, sx, sy, sW, sH, dx, dy, dW, dH);
         }
 
+        // 在矩形内 cover 绘制，但源区域为普通 cover 的一半（居中）→ 视觉上裁切放大 2 倍
+        function drawImageCover2xZoom(ctx, img, dx, dy, dW, dH) {
+            const dr = dW / dH, sr = img.width / img.height;
+            let sx, sy, sW, sH;
+            if (sr > dr) {
+                sH = img.height;
+                sW = sH * dr;
+                sx = (img.width - sW) / 2;
+                sy = 0;
+            } else {
+                sW = img.width;
+                sH = sW / dr;
+                sx = 0;
+                sy = (img.height - sH) / 2;
+            }
+            const cx = sx + sW / 2, cy = sy + sH / 2;
+            let nsW = sW * 0.5, nsH = sH * 0.5;
+            let nsx = cx - nsW / 2, nsy = cy - nsH / 2;
+            nsx = Math.max(0, Math.min(nsx, img.width - nsW));
+            nsy = Math.max(0, Math.min(nsy, img.height - nsH));
+            ctx.drawImage(img, nsx, nsy, nsW, nsH, dx, dy, dW, dH);
+        }
+
         // ── 通用工具：在 offscreen ctx 上绘制相机（主图 + 遮罩 + 阴影）──
         function drawCameraToOffscreen(octx, camX, camY, camW, camH) {
             if (mainImg) {
@@ -688,7 +872,7 @@
 
             const offscreen = document.createElement('canvas');
             const octx = offscreen.getContext('2d');
-            const suffix = ['sticker', 'whitebg', 'blackbg', 'photobg'][backgroundMode];
+            const suffix = ['sticker', 'whitebg', 'blackbg', 'photobg', 'photoblurtile'][backgroundMode];
 
             if (backgroundMode === 0) {
                 // ─ 无背景：3:2 输出，透明底 ─
@@ -700,8 +884,9 @@
                 offscreen.height = bgH;
                 drawCameraToOffscreen(octx, cx, cy, camW, camH);
 
-            } else if (backgroundMode === 1 || backgroundMode === 2) {
-                // ─ 白/黑背景：3:4 输出，上半相机 + 下半原图 ─
+            } else if (backgroundMode === 1 || backgroundMode === 2 || backgroundMode === 4) {
+                // ─ 1/2：白或黑顶区；4：顶区为「当前图 2x cover + 高斯模糊」──
+                // 均为 3:4：上半相机 + 下半整图 cover
                 const outW = camH * 3;
                 const outH = camH * 4;
                 const topH = outH / 2;
@@ -710,8 +895,32 @@
                 offscreen.width = outW;
                 offscreen.height = outH;
 
-                octx.fillStyle = backgroundMode === 1 ? '#D9D9D9' : '#262626';
-                octx.fillRect(0, 0, outW, topH);
+                if (backgroundMode === 4) {
+                    if (mainImg) {
+                        const { exportBlur: blurPx } = getMode4BlurPx(camH);
+                        const pad = Math.ceil(blurPx * 3);
+                        const bw = outW + 2 * pad;
+                        const bh = topH + 2 * pad;
+                        const big = document.createElement('canvas');
+                        big.width = bw;
+                        big.height = bh;
+                        drawImageCover2xZoom(big.getContext('2d'), mainImg, 0, 0, bw, bh);
+                        const blurCanvas = document.createElement('canvas');
+                        blurCanvas.width = bw;
+                        blurCanvas.height = bh;
+                        const bx = blurCanvas.getContext('2d');
+                        bx.filter = `blur(${blurPx}px)`;
+                        bx.drawImage(big, 0, 0);
+                        bx.filter = 'none';
+                        octx.drawImage(blurCanvas, pad, pad, outW, topH, 0, 0, outW, topH);
+                    } else {
+                        octx.fillStyle = '#1a1a1a';
+                        octx.fillRect(0, 0, outW, topH);
+                    }
+                } else {
+                    octx.fillStyle = backgroundMode === 1 ? '#D9D9D9' : '#262626';
+                    octx.fillRect(0, 0, outW, topH);
+                }
                 drawCameraToOffscreen(octx, cx, cy, camW, camH);
 
                 if (mainImg) {
@@ -781,6 +990,18 @@
         }
 
         updateBackgroundUI();
+
+        let mode4BlurResizeTimer = 0;
+        window.addEventListener('resize', () => {
+            clearTimeout(mode4BlurResizeTimer);
+            mode4BlurResizeTimer = setTimeout(() => {
+                if (backgroundMode !== 4) return;
+                const sh = getSheet(bgLayer);
+                if (!sh || sh.style.display === 'none') return;
+                const { previewBlur } = getMode4BlurPx();
+                sh.style.filter = `blur(${previewBlur}px)`;
+            }, 120);
+        });
 
         // 注册 Service Worker（离线可用）
         if ('serviceWorker' in navigator) {

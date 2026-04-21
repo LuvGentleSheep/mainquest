@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gr-cover-v7';
+const CACHE_NAME = 'gr-cover-v12';
 const ASSETS = [
   './',
   './index.html',
