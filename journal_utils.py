@@ -24,6 +24,34 @@ CAPTION_LINE_PATTERN = re.compile(r'^\s*!\[[^\]]*\]\([^)]+\)\s*\[\[#caption\]\]=
 MAX_SUMMARY_LENGTH = 220
 META_FILENAME = "journal_meta.json"
 
+SITE_FAVICON_HEAD = """
+    <link rel="apple-touch-icon" sizes="180x180" href="/homepage/favicon_io/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/homepage/favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/homepage/favicon_io/favicon-16x16.png">
+    <link rel="icon" href="/homepage/favicon_io/favicon.ico">
+    <link rel="manifest" href="/homepage/favicon_io/site.webmanifest">"""
+
+
+VIEWPORT_META_PATTERN = re.compile(
+    r"<meta\s+name=[\"']viewport[\"']\s+content=[\"'][^\"']*[\"']\s*/?>",
+    re.IGNORECASE,
+)
+
+
+def inject_site_favicon(html_content: str) -> tuple[str, bool]:
+    """Insert homepage favicon links if missing. Returns (content, changed)."""
+    if "favicon_io" in html_content or "logo-192.png" in html_content:
+        return html_content, False
+    match = VIEWPORT_META_PATTERN.search(html_content)
+    if match:
+        insert_at = match.end()
+        return html_content[:insert_at] + SITE_FAVICON_HEAD + html_content[insert_at:], True
+    title_match = re.search(r"</title>", html_content, re.IGNORECASE)
+    if title_match:
+        insert_at = title_match.end()
+        return html_content[:insert_at] + SITE_FAVICON_HEAD + html_content[insert_at:], True
+    return html_content, False
+
 
 @dataclass
 class JournalBuildResult:
@@ -171,7 +199,7 @@ def format_update_block(ctx: JournalBuildResult) -> str:
     block = f"""
     <div class="update-item">
         <div class="update-image">
-            <a href="{ctx.link_href}">
+            <a href="{ctx.link_href}" target="_blank" rel="noopener">
                 <img class="lazy" data-src="{ctx.hero_homepage_src}" alt="{safe_title} 封面">
                 <div class="image-title"></div>
             </a>
@@ -538,7 +566,7 @@ def _write_entry_html(ctx: JournalBuildResult) -> None:
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">{SITE_FAVICON_HEAD}
     <title>{safe_title}</title>
     <meta name="description" content="{summary_meta}">
     <link rel="preconnect" href="https://fonts.googleapis.com">

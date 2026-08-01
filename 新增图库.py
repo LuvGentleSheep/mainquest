@@ -82,6 +82,11 @@ def create_index_html(project_name):
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="apple-touch-icon" sizes="180x180" href="/homepage/favicon_io/apple-touch-icon.png">
+        <link rel="icon" type="image/png" sizes="32x32" href="/homepage/favicon_io/favicon-32x32.png">
+        <link rel="icon" type="image/png" sizes="16x16" href="/homepage/favicon_io/favicon-16x16.png">
+        <link rel="icon" href="/homepage/favicon_io/favicon.ico">
+        <link rel="manifest" href="/homepage/favicon_io/site.webmanifest">
     """
     file2_content = """
         <style>
@@ -589,6 +594,18 @@ def create_index_html(project_name):
             }
         };
     
+        /* ——— 全屏 ——— */
+        const enterFullscreen = () => {
+            const el = document.documentElement;
+            const req = el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.();
+            if (req?.catch) req.catch(() => {});
+        };
+        const exitFullscreen = () => {
+            if (!document.fullscreenElement && !document.webkitFullscreenElement) return;
+            const ex = document.exitFullscreen?.() ?? document.webkitExitFullscreen?.();
+            if (ex?.catch) ex.catch(() => {});
+        };
+
         /* ——— 打开 / 关闭模态 ——— */
         const open = () => {
             if(!srcList.length) return;
@@ -598,6 +615,7 @@ def create_index_html(project_name):
                 await crossfade(0);
                 modal.classList.add('open');
                 document.body.style.overflow='hidden';
+                enterFullscreen();
                 timer=setTimeout(tick,5000);
             };
             first.complete ? start() : first.decode().then(start);
@@ -606,7 +624,15 @@ def create_index_html(project_name):
             modal.classList.remove('open');
             document.body.style.overflow='auto';
             clearTimeout(timer);
+            exitFullscreen();
         };
+
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement && modal.classList.contains('open')) close();
+        });
+        document.addEventListener('webkitfullscreenchange', () => {
+            if (!document.webkitFullscreenElement && modal.classList.contains('open')) close();
+        });
     
         /* ——— 事件绑定 ——— */
         btn.addEventListener('click',open);
